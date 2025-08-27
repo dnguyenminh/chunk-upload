@@ -1,5 +1,6 @@
 package vn.com.fecredit.chunkedupload.service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -20,17 +21,69 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Service
 public class ChunkedUploadService {
-    private final Path inProgressDir = Paths.get("uploads/in-progress");
-    private final Path completeDir = Paths.get("uploads/complete");
+    /**
+     * Reads chunkSize from the header of the partial file.
+     */
+    public int getChunkSizeFromHeader(Path partPath) throws IOException {
+        try (var raf = new java.io.RandomAccessFile(partPath.toFile(), "r");
+             var ch = raf.getChannel()) {
+            var h = readHeader(ch);
+            return h.chunkSize;
+        }
+    }
+
+    /**
+     * Reads totalChunks from the header of the partial file.
+     */
+    public int getTotalChunksFromHeader(Path partPath) throws IOException {
+        try (var raf = new java.io.RandomAccessFile(partPath.toFile(), "r");
+             var ch = raf.getChannel()) {
+            var h = readHeader(ch);
+            return h.totalChunks;
+        }
+    }
+
+    /**
+     * Reads fileSize from the header of the partial file.
+     */
+    public long getFileSizeFromHeader(Path partPath) throws IOException {
+        try (var raf = new java.io.RandomAccessFile(partPath.toFile(), "r");
+             var ch = raf.getChannel()) {
+            var h = readHeader(ch);
+            return h.fileSize;
+        }
+    }
+
+    /**
+     * Returns the checksum for the uploadId (stub, returns null unless implemented).
+     */
+    public String getChecksum(String uploadId) {
+        // TODO: Implement checksum retrieval if needed
+        return null;
+    }
+    private final Path inProgressDir;
+    private final Path completeDir;
+    private final int defaultChunkSize;
     private final ConcurrentHashMap<String, String> uploadFilenames = new ConcurrentHashMap<>();
 
     /**
      * Initializes the service by creating the necessary directories for in-progress and completed uploads.
      * @throws IOException If an I/O error occurs while creating the directories.
      */
-    public ChunkedUploadService() throws IOException {
-        Files.createDirectories(inProgressDir);
-        Files.createDirectories(completeDir);
+    public ChunkedUploadService(
+            @Value("${chunkedupload.inprogress-dir:uploads/in-progress}") String inProgressDirPath,
+            @Value("${chunkedupload.complete-dir:uploads/complete}") String completeDirPath,
+            @Value("${chunkedupload.chunk-size:524288}") int defaultChunkSize
+    ) throws IOException {
+        this.inProgressDir = Paths.get(inProgressDirPath);
+        this.completeDir = Paths.get(completeDirPath);
+        this.defaultChunkSize = defaultChunkSize;
+        Files.createDirectories(this.inProgressDir);
+        Files.createDirectories(this.completeDir);
+    }
+
+    public int getDefaultChunkSize() {
+        return defaultChunkSize;
     }
 
     /**

@@ -17,8 +17,9 @@ This project implements a resumable file upload server in Java (Spring Boot) wit
 - Modular architecture: controller, service, session manager, bitset manager
 
 ## Directory Structure
-- `uploads/in-progress/`: Temporary storage for in-progress uploads (chunk data and header)
-- `uploads/complete/`: Final assembled files, named as `<uploadId>_<originalFilename>`
+* Upload directories are configurable in `application.properties`:
+    - `chunkedupload.inprogress-dir`: Temporary storage for in-progress uploads (default: `uploads/in-progress`)
+    - `chunkedupload.complete-dir`: Final assembled files (default: `uploads/complete`), named as `<uploadId>_<originalFilename>`
 
 ## API Endpoints
 

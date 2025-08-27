@@ -52,14 +52,124 @@ import java.util.concurrent.LinkedBlockingQueue;
  * Thread Safety: This class is not thread-safe for concurrent uploads; create a new instance per upload.
  */
 public class ChunkedUploadClient {
+    public interface UploadTransport {
+        InitResponse initUpload(InitRequest initRequest, String uploadUrl, String encodedAuth) throws IOException, InterruptedException;
+        void uploadSingleChunk(String sessionId, int chunkIndex, int chunkSize, byte[] fileContent, String uploadUrl, String encodedAuth) throws IOException, InterruptedException, NoSuchAlgorithmException;
+    }
+
+    public static class DefaultUploadTransport implements UploadTransport {
+        private final ObjectMapper objectMapper;
+        private final HttpClient httpClient;
+        public DefaultUploadTransport(HttpClient httpClient) {
+            this.objectMapper = new ObjectMapper();
+            this.httpClient = httpClient != null ? httpClient : HttpClient.newHttpClient();
+        }
+        @Override
+        public InitResponse initUpload(InitRequest initRequest, String uploadUrl, String encodedAuth) throws IOException, InterruptedException {
+            String requestBody = objectMapper.writeValueAsString(initRequest);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(uploadUrl + "/init"))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Basic " + encodedAuth)
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                throw new IOException("Failed to initialize upload");
+            }
+            return objectMapper.readValue(response.body(), InitResponse.class);
+        }
+        @Override
+        public void uploadSingleChunk(String sessionId, int chunkIndex, int chunkSize, byte[] fileContent, String uploadUrl, String encodedAuth) throws IOException, InterruptedException, NoSuchAlgorithmException {
+            int start = chunkIndex * chunkSize;
+            int end = Math.min(start + chunkSize, fileContent.length);
+            byte[] chunk = new byte[end - start];
+            System.arraycopy(fileContent, start, chunk, 0, chunk.length);
+            String boundary = "----Boundary" + java.util.UUID.randomUUID();
+            String CRLF = "\r\n";
+            StringBuilder sb = new StringBuilder();
+            sb.append("--").append(boundary).append(CRLF);
+            sb.append("Content-Disposition: form-data; name=\"uploadId\"" + CRLF + CRLF).append(sessionId).append(CRLF);
+            sb.append("--").append(boundary).append(CRLF);
+            sb.append("Content-Disposition: form-data; name=\"chunkNumber\"" + CRLF + CRLF).append(chunkIndex + 1).append(CRLF);
+            sb.append("--").append(boundary).append(CRLF);
+            sb.append("Content-Disposition: form-data; name=\"totalChunks\"" + CRLF + CRLF).append((int) Math.ceil((double) fileContent.length / chunkSize)).append(CRLF);
+            sb.append("--").append(boundary).append(CRLF);
+            sb.append("Content-Disposition: form-data; name=\"chunkSize\"" + CRLF + CRLF).append(chunkSize).append(CRLF);
+            sb.append("--").append(boundary).append(CRLF);
+            sb.append("Content-Disposition: form-data; name=\"fileSize\"" + CRLF + CRLF).append(fileContent.length).append(CRLF);
+            sb.append("--").append(boundary).append(CRLF);
+            sb.append("Content-Disposition: form-data; name=\"file\"; filename=\"chunk.bin\"" + CRLF);
+            sb.append("Content-Type: application/octet-stream" + CRLF + CRLF);
+            byte[] headerBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+            byte[] footerBytes = (CRLF + "--" + boundary + "--" + CRLF).getBytes(StandardCharsets.UTF_8);
+            byte[] multipartBody = new byte[headerBytes.length + chunk.length + footerBytes.length];
+            System.arraycopy(headerBytes, 0, multipartBody, 0, headerBytes.length);
+            System.arraycopy(chunk, 0, multipartBody, headerBytes.length, chunk.length);
+            System.arraycopy(footerBytes, 0, multipartBody, headerBytes.length + chunk.length, footerBytes.length);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(uploadUrl + "/chunk"))
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .header("Authorization", "Basic " + encodedAuth)
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                throw new IOException("Failed to upload chunk " + chunkIndex);
+            }
+        }
+    }
+    /**
+     * Resumes a broken upload by continuing to upload missing chunks for the given uploadId.
+     * @param uploadId The upload session ID to resume.
+     * @param fileContent The file content as byte array.
+     * @throws RuntimeException if resume fails.
+     */
+    public void resumeUpload(String uploadId, byte[] fileContent) {
+        try {
+            // Get session info from server (init with uploadId)
+            InitRequest initRequest = new InitRequest();
+            initRequest.setUploadId(uploadId);
+            initRequest.setFileSize(fileContent.length);
+            InitResponse initResp = transport.initUpload(initRequest, uploadUrl, encodedAuth);
+            int chunkSize = initResp.getChunkSize();
+
+            // Checksum comparison
+            String previousChecksum = null;
+            try {
+                previousChecksum = (String) initResp.getClass().getMethod("getChecksum").invoke(initResp);
+            } catch (Exception ignore) {}
+            String currentChecksum = computeSHA256(fileContent);
+            if (previousChecksum != null && !previousChecksum.isEmpty() && !previousChecksum.equals(currentChecksum)) {
+                throw new RuntimeException("Checksum mismatch: cannot resume upload. Previous=" + previousChecksum + ", Current=" + currentChecksum);
+            }
+
+            uploadChunks(uploadId, chunkSize, fileContent);
+        } catch (Exception e) {
+            propagateRelevantException(e);
+        }
+    }
+
+    private String computeSHA256(byte[] data) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data);
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to compute SHA-256 checksum", e);
+        }
+    }
     private final String uploadUrl;
     private final String username;
     private final String password;
     private int retryTimes;
     private int threadCounts;
-    private final HttpClient httpClient;
-    private final ObjectMapper objectMapper;
-    private String encodedAuth;
+    private final String encodedAuth;
+    private final UploadTransport transport;
 
     private ChunkedUploadClient(Builder builder) {
         if (builder.uploadUrl == null || builder.uploadUrl.isEmpty()) {
@@ -71,24 +181,28 @@ public class ChunkedUploadClient {
         if (builder.password == null || builder.password.isEmpty()) {
             throw new IllegalArgumentException("password is required");
         }
-        this.uploadUrl = builder.uploadUrl;
-        this.username = builder.username;
-        this.password = builder.password;
-        this.retryTimes = builder.retryTimes;
-        this.threadCounts = builder.threadCounts;
-        this.httpClient = builder.httpClient != null ? builder.httpClient : HttpClient.newHttpClient();
-        this.objectMapper = new ObjectMapper();
-        String auth = username + ":" + password;
-        this.encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+    this.uploadUrl = builder.uploadUrl;
+    this.username = builder.username;
+    this.password = builder.password;
+    this.retryTimes = builder.retryTimes;
+    this.threadCounts = builder.threadCounts;
+    String auth = username + ":" + password;
+    this.encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+    this.transport = builder.transport != null ? builder.transport : new DefaultUploadTransport(builder.httpClient);
     }
 
     public static class Builder {
-        private String uploadUrl;
-        private String username;
-        private String password;
-        private int retryTimes = 2;
-        private int threadCounts = Runtime.getRuntime().availableProcessors() * 2;
-        private HttpClient httpClient;
+    private String uploadUrl;
+    private String username;
+    private String password;
+    private int retryTimes = 2;
+    private int threadCounts = Runtime.getRuntime().availableProcessors() * 2;
+    private HttpClient httpClient;
+    private UploadTransport transport;
+        public Builder transport(UploadTransport transport) {
+            this.transport = transport;
+            return this;
+        }
 
         public Builder uploadUrl(String uploadUrl) {
             this.uploadUrl = uploadUrl;
@@ -133,7 +247,7 @@ public class ChunkedUploadClient {
      * @param threadCounts number of worker threads (optional, overrides client config)
      * @throws RuntimeException if upload fails with a relevant error message
      */
-    public void upload(byte[] fileContent, String fileName, Integer retryTimes, Integer threadCounts) {
+    public String upload(byte[] fileContent, String fileName, Integer retryTimes, Integer threadCounts) {
         if (fileContent == null || fileContent.length == 0) {
             throw new IllegalArgumentException("fileContent is required");
         }
@@ -147,14 +261,14 @@ public class ChunkedUploadClient {
         }
         try {
             InitResponse initResponse = initUpload(fileContent, fileName);
-            String sessionId = initResponse.getUploadId();
+            String uploadId = initResponse.getUploadId();
             int chunkSize = initResponse.getChunkSize();
-            // Removed unused totalChunks variable
-            uploadChunks(sessionId, chunkSize, fileContent);
-            // Removed explicit assembleFile call; server will assemble automatically when all chunks are received.
+            uploadChunks(uploadId, chunkSize, fileContent);
             System.out.println("File uploaded successfully!");
+            return uploadId;
         } catch (Exception e) {
             propagateRelevantException(e);
+            return null;
         }
     }
 
@@ -168,25 +282,11 @@ public class ChunkedUploadClient {
      * @throws InterruptedException if thread is interrupted
      */
     private InitResponse initUpload(byte[] fileContent, String fileName) throws IOException, InterruptedException {
-        InitRequest initRequest = new InitRequest();
-        initRequest.setFilename(fileName);
-        initRequest.setFileSize(fileContent.length);
-        String requestBody = objectMapper.writeValueAsString(initRequest);
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(uploadUrl + "/init"))
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Basic " + encodedAuth)
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                throw new IOException("Failed to initialize upload");
-            }
-            return objectMapper.readValue(response.body(), InitResponse.class);
-        } catch (IOException | InterruptedException ex) {
-            throw new IOException("Failed to initialize upload", ex);
-        }
+    InitRequest initRequest = new InitRequest();
+    initRequest.setFilename(fileName);
+    initRequest.setFileSize(fileContent.length);
+    // Do not set chunkSize or totalChunks; let server use its config
+    return transport.initUpload(initRequest, uploadUrl, encodedAuth);
     }
 
     /**
@@ -214,7 +314,7 @@ public class ChunkedUploadClient {
                     while (true) {
                         Integer chunkIndex = chunkQueue.poll();
                         if (chunkIndex == null) break;
-                        uploadSingleChunk(sessionId, chunkIndex, chunkSize, fileContent);
+                        transport.uploadSingleChunk(sessionId, chunkIndex, chunkSize, fileContent, uploadUrl, encodedAuth);
                     }
                 } catch (Exception e) {
                     propagateRelevantException(e);
@@ -234,50 +334,18 @@ public class ChunkedUploadClient {
         }
     }
 
-    /**
-     * Uploads a single chunk with retry logic and checksum verification.
-     *
-     * @param sessionId the upload session ID
-     * @param chunkIndex the index of the chunk
-     * @param chunkSize the size of the chunk
-     * @param fileContent the file content as byte array
-     * @throws IOException if chunk upload fails
-     * @throws InterruptedException if thread is interrupted
-     * @throws NoSuchAlgorithmException if SHA-256 is not available
-     */
-    private void uploadSingleChunk(String sessionId, int chunkIndex, int chunkSize, byte[] fileContent) throws IOException, InterruptedException, NoSuchAlgorithmException {
-        int attempts = 0;
-        while (true) {
-            try {
-                int start = chunkIndex * chunkSize;
-                int end = Math.min(start + chunkSize, fileContent.length);
-                byte[] chunk = new byte[end - start];
-                System.arraycopy(fileContent, start, chunk, 0, chunk.length);
-                MessageDigest digest = MessageDigest.getInstance("SHA-256");
-                byte[] chunkChecksum = digest.digest(chunk);
-                String chunkChecksumBase64 = Base64.getEncoder().encodeToString(chunkChecksum);
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(uploadUrl + "/upload/" + sessionId + "/" + chunkIndex))
-                        .header("Content-Type", "application/octet-stream")
-                        .header("X-Chunk-Checksum", chunkChecksumBase64)
-                        .header("Authorization", "Basic " + encodedAuth)
-                        .POST(HttpRequest.BodyPublishers.ofByteArray(chunk))
-                        .build();
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() == 200) {
-                    return; // Success
-                }
-                throw new IOException("Failed to upload chunk " + chunkIndex);
-            } catch (IOException | InterruptedException ex) {
-                attempts++;
-                if (attempts > retryTimes) {
-                    throw new IOException("Failed to upload chunk " + chunkIndex, ex);
-                }
-                System.err.println("Upload of chunk " + chunkIndex + " failed. Attempt " + attempts + ". Retrying...");
-                Thread.sleep(1000);
-            }
-        }
+    // Public methods for testing (no reflection needed)
+    public InitResponse startUploadSession(byte[] fileContent, String fileName) throws IOException, InterruptedException {
+        InitRequest initRequest = new InitRequest();
+        initRequest.setFilename(fileName);
+        initRequest.setFileSize(fileContent.length);
+        return transport.initUpload(initRequest, uploadUrl, encodedAuth);
     }
+
+    public void uploadChunk(String uploadId, int chunkIndex, int chunkSize, byte[] fileContent) throws IOException, InterruptedException, NoSuchAlgorithmException {
+        transport.uploadSingleChunk(uploadId, chunkIndex, chunkSize, fileContent, uploadUrl, encodedAuth);
+    }
+
 
     /**
      * Propagates relevant exceptions with exact error messages for chunk upload and initialization failures.
@@ -291,16 +359,7 @@ public class ChunkedUploadClient {
             String msg = t.getMessage();
             if (msg != null && (msg.contains("Failed to upload chunk") || msg.contains("Failed to initialize upload"))) {
                 // Throw a plain RuntimeException with only the message, not the cause
-                throw new RuntimeException(msg) {
-                    @Override
-                    public String getMessage() {
-                        return msg;
-                    }
-                    @Override
-                    public String toString() {
-                        return getMessage();
-                    }
-                };
+                throw new RuntimeException(msg);
             }
             if (t instanceof java.util.concurrent.ExecutionException && t.getCause() != null) {
                 t = t.getCause();
@@ -308,15 +367,6 @@ public class ChunkedUploadClient {
             }
             t = t.getCause();
         }
-        throw new RuntimeException("Unknown error") {
-            @Override
-            public String getMessage() {
-                return "Unknown error";
-            }
-            @Override
-            public String toString() {
-                return getMessage();
-            }
-        };
+        throw new RuntimeException("Unknown error");
     }
 }

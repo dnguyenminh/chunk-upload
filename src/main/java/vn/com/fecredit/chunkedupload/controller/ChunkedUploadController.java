@@ -40,13 +40,37 @@ public class ChunkedUploadController {
      */
     @PostMapping("/init")
     public InitResponse initUpload(@RequestBody InitRequest req) throws IOException {
+        // Resume logic: if uploadId is provided, return session info for that upload
+        if (StringUtils.hasText(req.getUploadId())) {
+            String uploadId = req.getUploadId();
+            Path partPath = uploadService.getPartPath(uploadId);
+            // Load header info (chunkSize, totalChunks, fileSize, filename)
+            int chunkSize = uploadService.getChunkSizeFromHeader(partPath);
+            int totalChunks = uploadService.getTotalChunksFromHeader(partPath);
+            long fileSize = uploadService.getFileSizeFromHeader(partPath);
+            String filename = uploadService.getFilename(uploadId);
+            String checksum = uploadService.getChecksum(uploadId); // If available
+            InitResponse resp = new InitResponse(uploadId, totalChunks, chunkSize, fileSize, filename);
+            // If checksum is available, set it via reflection (or add to model if needed)
+            try {
+                java.lang.reflect.Method setChecksum = resp.getClass().getMethod("setChecksum", String.class);
+                setChecksum.invoke(resp, checksum);
+            } catch (Exception ignore) {}
+            return resp;
+        }
+        // New upload logic
+        int chunkSize = req.getChunkSize() > 0 ? req.getChunkSize() : uploadService.getDefaultChunkSize();
+        long fileSize = req.getFileSize();
+        int totalChunks = req.getTotalChunks() > 0 ? req.getTotalChunks() : (int) Math.ceil((double) fileSize / chunkSize);
+        req.setChunkSize(chunkSize);
+        req.setTotalChunks(totalChunks);
         validateInitRequest(req);
         String uploadId = getOrCreateUploadId(req.getUploadId());
         Path partPath = uploadService.getPartPath(uploadId);
         uploadService.storeFilename(uploadId, req.getFilename());
-        uploadService.createOrValidateHeader(partPath, req.getTotalChunks(), req.getChunkSize(), req.getFileSize());
-        sessionManager.startSession(uploadId, req.getFileSize());
-        return new InitResponse(uploadId, req.getTotalChunks(), req.getChunkSize(), req.getFileSize(), req.getFilename());
+        uploadService.createOrValidateHeader(partPath, totalChunks, chunkSize, fileSize);
+        sessionManager.startSession(uploadId, fileSize);
+        return new InitResponse(uploadId, totalChunks, chunkSize, fileSize, req.getFilename());
     }
 
     /**
@@ -61,9 +85,14 @@ public class ChunkedUploadController {
      * @throws IOException If there is an error processing the upload.
      */
     @PostMapping("/chunk")
-    public ResponseEntity<?> uploadChunk(@RequestParam String uploadId, @RequestParam int chunkNumber,
-                                         @RequestParam int totalChunks, @RequestParam int chunkSize,
-                                         @RequestParam long fileSize, @RequestParam("file") MultipartFile file) throws IOException {
+    public ResponseEntity<?> uploadChunk(
+        @RequestParam("uploadId") String uploadId,
+        @RequestParam("chunkNumber") int chunkNumber,
+        @RequestParam("totalChunks") int totalChunks,
+        @RequestParam("chunkSize") int chunkSize,
+        @RequestParam("fileSize") long fileSize,
+        @RequestParam("file") MultipartFile file
+    ) throws IOException {
         Path partPath = uploadService.getPartPath(uploadId);
         uploadService.writeChunk(partPath, chunkNumber, chunkSize, file.getBytes());
         boolean isLastChunk = bitsetManager.markChunkAndCheckComplete(partPath, chunkNumber, totalChunks);
@@ -76,12 +105,14 @@ public class ChunkedUploadController {
             result.put("status", "completed");
             result.put("nextChunk", null);
             result.put("finalPath", finalPath.toString());
+            result.put("uploadId", uploadId);
             return ResponseEntity.ok(result);
         }
         int nextChunk = findNextMissingChunk(bitsetManager.getBitset(partPath, totalChunks), totalChunks);
         Map<String, Object> result = new java.util.HashMap<>();
         result.put("status", "ok");
         result.put("nextChunk", nextChunk);
+        result.put("uploadId", uploadId);
         return ResponseEntity.ok(result);
     }
 
@@ -123,6 +154,14 @@ public class ChunkedUploadController {
      * @throws IllegalArgumentException If any required field is missing or invalid.
      */
     private void validateInitRequest(InitRequest req) {
+        // For resume, only fileSize and uploadId are required
+        if (StringUtils.hasText(req.getUploadId())) {
+            if (req.getFileSize() <= 0) {
+                throw new IllegalArgumentException("fileSize must be provided for resume");
+            }
+            return;
+        }
+        // For new upload, all fields required
         if (req.getTotalChunks() <= 0 || req.getChunkSize() <= 0 || req.getFileSize() <= 0 || !StringUtils.hasText(req.getFilename())) {
             throw new IllegalArgumentException("totalChunks, chunkSize, fileSize, and filename must be provided");
         }
