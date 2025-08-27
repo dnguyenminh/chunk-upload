@@ -1,23 +1,25 @@
 # Chunked Upload Service
 
-This project implements a resumable file upload server in Java (Spring Boot) with a modular architecture. It stores file chunks and maintains a simple header file to track uploaded chunks, using a dedicated directory structure for in-progress and completed uploads.
-
-## Client Implementation Update
-- The Java client (`ChunkedUploadClient`) no longer calls an explicit assemble/merge endpoint after uploading all chunks. The server automatically assembles the file once all chunks are received.
-- The client uploads all chunks in parallel using worker threads and a blocking queue, with robust error propagation and retry logic.
-- The API and server behavior remain unchanged: the server assembles the file as soon as all chunks are present.
+This project implements a resumable file upload service in Java (Spring Boot). The project is divided into three modules:
+- `server`: The main Spring Boot application providing the upload API.
+- `client`: A Java client for interacting with the upload service.
+- `model`: Shared data transfer objects (DTOs) used by both the server and client.
 
 ## Features
 - Chunked upload with resume support
 - File header to track uploaded chunks
-- Resumable uploads without database
-- Simple cache directory
-- JUnit tests
-- Original filename is required and preserved for completed uploads
-- Modular architecture: controller, service, session manager, bitset manager
+- Resumable uploads without a database
+- Simple cache directory for in-progress and completed uploads
+- JUnit tests for both unit and integration testing
+- Modular architecture: `server`, `client`, and `model` modules
+
+## Gradle Project Structure
+The project uses a multi-module Gradle setup. The root `build.gradle` file configures shared settings for the subprojects: `server`, `client`, and `model`. Dependency versions are managed centrally using the `io.spring.dependency-management` plugin and the Spring Boot BOM, ensuring consistency across all modules.
+
+Each module (`server`, `client`, `model`) has its own `build.gradle` file defining its specific dependencies.
 
 ## Directory Structure
-* Upload directories are configurable in `application.properties`:
+* Upload directories are configurable in `application.properties` within the `server` module:
     - `chunkedupload.inprogress-dir`: Temporary storage for in-progress uploads (default: `uploads/in-progress`)
     - `chunkedupload.complete-dir`: Final assembled files (default: `uploads/complete`), named as `<uploadId>_<originalFilename>`
 
@@ -46,12 +48,11 @@ This project implements a resumable file upload server in Java (Spring Boot) wit
 
 ### 2. `POST /api/upload/chunk`
 **Form Data:**
-- `uploadId`, `chunkNumber`, `totalChunks`, `chunkSize`, `fileSize`, `chunkChecksum`, `file` (chunk data)
-- On last chunk, server assembles the file as `<uploadId>_<filename>` in `uploads/complete/`
-- Response always includes `nextChunk` (null if completed)
+- `uploadId`, `chunkNumber`, `totalChunks`, `chunkSize`, `fileSize`, `file` (chunk data)
+- On the last chunk, the server assembles the file as `<uploadId>_<filename>` in `uploads/complete/`.
 
 ### 3. `GET /api/upload/{uploadId}/status`
-Returns upload status and chunk progress.
+Returns the status of an ongoing upload.
 
 ### 4. `DELETE /api/upload/{uploadId}`
 Aborts and cleans up an in-progress upload.
@@ -76,9 +77,9 @@ sequenceDiagram
         Controller->>BitsetManager: mark chunk, check complete
         alt Last chunk
             Controller->>SessionManager: end session
-            Controller-->>Client: status=completed, finalPath, nextChunk=null
+            Controller-->>Client: status=completed, finalPath
         else Not last chunk
-            Controller-->>Client: status=ok, nextChunk
+            Controller-->>Client: status=ok
         end
     end
 ```
@@ -87,44 +88,44 @@ sequenceDiagram
 
 ```mermaid
 classDiagram
-    class ChunkedUploadController {
-        +initUpload()
-        +uploadChunk()
-        +getStatus()
-        +abort()
-        -uploadService
-        -sessionManager
-        -bitsetManager
-    }
-    class ChunkedUploadService {
-        +storeFilename()
-        +createOrValidateHeader()
-        +writeChunk()
-        +assembleFile()
-        +getPartPath()
-        +getFinalPath()
-    }
-    class SessionManager {
-        +startSession()
-        +endSession()
-        +getStatus()
-    }
-    class BitsetManager {
-        +markChunkAndCheckComplete()
-        +getBitset()
-    }
+    subgraph server
+        direction LR
+        class ChunkedUploadController
+        class ChunkedUploadService
+        class SessionManager
+        class BitsetManager
+    end
+
+    subgraph client
+        direction LR
+        class ChunkedUploadClient
+    end
+
+    subgraph model
+        direction LR
+        class InitRequest
+        class InitResponse
+    end
+
     ChunkedUploadController --> ChunkedUploadService
     ChunkedUploadController --> SessionManager
     ChunkedUploadController --> BitsetManager
+    ChunkedUploadController --> InitRequest
+    ChunkedUploadController --> InitResponse
+
+    ChunkedUploadClient --> InitRequest
+    ChunkedUploadClient --> InitResponse
 ```
 
-## Implementation Notes
-- The original filename is required in the `/init` API and is used for the final assembled file.
-- All chunk and session management is in-memory and file-based (no database).
-- The service is robust for resumable and concurrent uploads.
-- Controller, service, and helper classes are all ≤100 lines, methods ≤20 lines for maintainability.
-
 ## Build & Run
+
 ```bash
-./gradlew build
-./gradlew run
+# Clean and build all modules
+./gradlew clean build
+
+# Run the server application
+./gradlew :server:bootRun
+
+# Run the client's integration tests
+./gradlew :client:test
+```

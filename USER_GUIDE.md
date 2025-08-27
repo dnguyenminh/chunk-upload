@@ -1,10 +1,13 @@
 # Chunked Upload Service – User Guide
 
 ## Overview
-This project provides a resumable, chunked file upload system in Java (Spring Boot) with a robust client (`ChunkedUploadClient`). It supports large file uploads, automatic assembly, and resume/retry logic.
+This project provides a resumable, chunked file upload system in Java (Spring Boot). The project is divided into three modules:
+- `server`: The main Spring Boot application providing the upload API.
+- `client`: A Java client (`ChunkedUploadClient`) for interacting with the upload service.
+- `model`: Shared data transfer objects (DTOs) used by both the server and client.
 
 ## Directory Structure
-* Upload directories are configurable in `application.properties`:
+* Upload directories are configurable in `server/src/main/resources/application.properties`:
   - `chunkedupload.inprogress-dir`: Temporary storage for in-progress uploads (default: `uploads/in-progress`)
   - `chunkedupload.complete-dir`: Final assembled files (default: `uploads/complete`), named as `<uploadId>_<originalFilename>`
 
@@ -59,9 +62,15 @@ Aborts and cleans up an in-progress upload.
 ---
 
 ## Java Client Usage
+The `ChunkedUploadClient` is available in the `client` module.
 
 ### Example
 ```java
+// Make sure the 'client' and 'model' modules are on the classpath
+import vn.com.fecredit.chunkedupload.client.ChunkedUploadClient;
+
+// ...
+
 ChunkedUploadClient client = new ChunkedUploadClient.Builder()
     .uploadUrl("http://localhost:8080/api/upload")
     .username("user")
@@ -71,15 +80,15 @@ ChunkedUploadClient client = new ChunkedUploadClient.Builder()
     .build();
 
 String uploadId = client.upload(fileBytes, "myfile.txt", null, null);
-// The final file will be saved as uploads/complete/{uploadId}_myfile.txt
+// The final file will be saved as uploads/complete/{uploadId}_myfile.txt on the server
 ```
 - The client automatically splits the file into chunks, uploads in parallel, and retries failed chunks.
-- The returned `uploadId` can be used to check status or locate the completed file.
+- The returned `uploadId` can be used to check status or locate the completed file on the server.
 
 ---
 
 ## Integration Test Example
-See `ChunkedUploadClientIntegrationTest.java` for a full integration test. It verifies upload and file content:
+See `client/src/test/java/vn/com/fecredit/chunkedupload/client/ChunkedUploadClientIntegrationTest.java` for a full integration test. It verifies upload and file content:
 
 ```java
 String uploadId = client.upload(FILE_CONTENT, FILENAME, null, null);
@@ -92,16 +101,33 @@ assertArrayEquals(FILE_CONTENT, uploadedContent, "Uploaded file content should m
 ---
 
 ## Architecture Notes
+- The project is split into `server`, `client`, and `model` modules for a clean separation of concerns.
+- The Gradle build is structured as a multi-module project, with dependency versions managed by the Spring Boot BOM.
 - No database required; header files track chunk status.
 - Server assembles the file automatically when all chunks are received.
 - Resume support: client can retry missing chunks.
 
 ---
 
+## Build & Run
+
+```bash
+# Clean and build all modules
+./gradlew clean build
+
+# Run the server application
+./gradlew :server:bootRun
+
+# Run the client's integration tests
+./gradlew :client:test
+```
+
+---
+
 ## Troubleshooting
 - If the upload fails, check server logs for errors.
 - Ensure the client and server use matching authentication credentials.
-- The completed file will be named `{uploadId}_{originalFilename}` in `uploads/complete/`.
+- The completed file will be named `{uploadId}_{originalFilename}` in the server's `uploads/complete/` directory.
 
 ---
 
