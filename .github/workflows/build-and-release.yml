@@ -40,15 +40,23 @@ jobs:
           draft: false
           prerelease: false
 
+      - name: Get Server JAR Path
+        id: get_server_jar_path
+        run: echo "path=$(ls server/build/libs/*.jar)" >> $GITHUB_OUTPUT
+
       - name: Upload Server JAR
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./server/build/libs/*.jar
+          asset_path: ${{ steps.get_server_jar_path.outputs.path }}
           asset_name: chunked-upload-server.jar
           asset_content_type: application/java-archive
+
+      - name: Get Client JAR Path
+        id: get_client_jar_path
+        run: echo "path=$(ls client/build/libs/*.jar)" >> $GITHUB_OUTPUT
 
       - name: Upload Client JAR
         uses: actions/upload-release-asset@v1
@@ -56,6 +64,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./client/build/libs/*.jar
+          asset_path: ${{ steps.get_client_jar_path.outputs.path }}
           asset_name: chunked-upload-client.jar
           asset_content_type: application/java-archive
