@@ -9,6 +9,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class InitResponse {
     /**
+     * The checksum of the file (optional, used for validation).
+     */
+    private String checksum;
+    /**
      * The unique identifier for the upload session.
      */
     @JsonProperty("sessionId")
@@ -50,6 +54,7 @@ public class InitResponse {
         this.chunkSize = chunkSize;
         this.fileSize = fileSize;
         this.filename = filename;
+    this.checksum = null;
     }
 
     public String getUploadId() {
@@ -90,5 +95,13 @@ public class InitResponse {
 
     public void setFilename(String filename) {
         this.filename = filename;
+    }
+
+    public String getChecksum() {
+        return checksum;
+    }
+
+    public void setChecksum(String checksum) {
+        this.checksum = checksum;
     }
 }

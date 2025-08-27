@@ -12,17 +12,19 @@ import java.nio.file.Paths;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Handles the low-level file operations for chunked uploads.
+ * Service for handling low-level file operations for chunked uploads.
  * <p>
- * This service manages the lifecycle of a file upload, from creating temporary part files
- * to assembling the final complete file. It uses a dedicated directory for in-progress uploads
- * and another for completed files.
+ * Manages the lifecycle of a file upload, including creating temporary part files,
+ * assembling the final file, and managing directories for in-progress and completed uploads.
  * </p>
  */
 @Service
 public class ChunkedUploadService {
     /**
      * Reads chunkSize from the header of the partial file.
+     * @param partPath Path to the partial file.
+     * @return The chunk size in bytes.
+     * @throws IOException If an I/O error occurs.
      */
     public int getChunkSizeFromHeader(Path partPath) throws IOException {
         try (var raf = new java.io.RandomAccessFile(partPath.toFile(), "r");
@@ -34,6 +36,9 @@ public class ChunkedUploadService {
 
     /**
      * Reads totalChunks from the header of the partial file.
+     * @param partPath Path to the partial file.
+     * @return The total number of chunks.
+     * @throws IOException If an I/O error occurs.
      */
     public int getTotalChunksFromHeader(Path partPath) throws IOException {
         try (var raf = new java.io.RandomAccessFile(partPath.toFile(), "r");
@@ -45,6 +50,9 @@ public class ChunkedUploadService {
 
     /**
      * Reads fileSize from the header of the partial file.
+     * @param partPath Path to the partial file.
+     * @return The file size in bytes.
+     * @throws IOException If an I/O error occurs.
      */
     public long getFileSizeFromHeader(Path partPath) throws IOException {
         try (var raf = new java.io.RandomAccessFile(partPath.toFile(), "r");
@@ -54,13 +62,6 @@ public class ChunkedUploadService {
         }
     }
 
-    /**
-     * Returns the checksum for the uploadId (stub, returns null unless implemented).
-     */
-    public String getChecksum(String uploadId) {
-        // TODO: Implement checksum retrieval if needed
-        return null;
-    }
     private final Path inProgressDir;
     private final Path completeDir;
     private final int defaultChunkSize;
@@ -68,6 +69,9 @@ public class ChunkedUploadService {
 
     /**
      * Initializes the service by creating the necessary directories for in-progress and completed uploads.
+     * @param inProgressDirPath Directory path for in-progress uploads.
+     * @param completeDirPath Directory path for completed uploads.
+     * @param defaultChunkSize Default chunk size in bytes.
      * @throws IOException If an I/O error occurs while creating the directories.
      */
     public ChunkedUploadService(

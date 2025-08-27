@@ -6,10 +6,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Manages active upload sessions, tracking their state and metadata.
  * <p>
- * This manager is responsible for maintaining a record of all ongoing chunked
- * uploads. It uses a thread-safe in-memory map to store session information,
- * primarily mapping a unique upload ID to the total file size. This allows for
- * quick lookups and status checks for any active upload.
+ * Maintains a record of all ongoing chunked uploads using a thread-safe in-memory map.
+ * Maps a unique upload ID to the total file size for quick lookups and status checks.
  * </p>
  */
 @Component
@@ -23,10 +21,7 @@ public class SessionManager {
 
     /**
      * Starts and registers a new upload session.
-     * <p>
      * If a session with the same upload ID already exists, it will be overwritten.
-     * </p>
-     *
      * @param uploadId The unique identifier for the upload session.
      * @param fileSize The total size of the file being uploaded in bytes.
      */
@@ -36,10 +31,7 @@ public class SessionManager {
 
     /**
      * Ends and removes an upload session from tracking.
-     * <p>
-     * This should be called when an upload is completed or aborted to free up resources.
-     * </p>
-     *
+     * Should be called when an upload is completed or aborted to free up resources.
      * @param uploadId The unique identifier for the upload session to be ended.
      */
     public void endSession(String uploadId) {
@@ -48,7 +40,6 @@ public class SessionManager {
 
     /**
      * Retrieves the status of a specific upload session.
-     *
      * @param uploadId The unique identifier for the upload session.
      * @return A {@link SessionStatus} object containing details about the session.
      *         If the session is not found, the fileSize in the returned status will be 0.
@@ -59,8 +50,17 @@ public class SessionManager {
     }
 
     /**
+     * Checks if an upload session is currently active.
+     * @param uploadId The unique identifier for the upload session.
+     * @return true if the session is active, false otherwise.
+     */
+    public boolean isSessionActive(String uploadId) {
+        return sessions.containsKey(uploadId);
+    }
+
+    /**
      * Represents the status and metadata of an upload session.
-     * This is typically returned to the client to provide information about an ongoing upload.
+     * Typically returned to the client to provide information about an ongoing upload.
      */
     public static class SessionStatus {
         /**

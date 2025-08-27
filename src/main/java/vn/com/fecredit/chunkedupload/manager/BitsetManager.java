@@ -7,10 +7,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Manages the state of chunked uploads using bitsets.
  * <p>
- * This manager tracks which chunks of a file have been successfully uploaded.
- * It uses a bitset, represented as a byte array, for each upload session. Each bit
- * in the bitset corresponds to a single chunk, allowing for efficient tracking of
- * upload progress. The bitsets are stored in memory.
+ * Tracks which chunks of a file have been successfully uploaded using a bitset (byte array) for each session.
+ * Each bit corresponds to a single chunk, allowing efficient tracking of upload progress.
  * </p>
  */
 @Component
@@ -24,15 +22,10 @@ public class BitsetManager {
 
     /**
      * Marks a chunk as received and checks if the entire file upload is complete.
-     * <p>
-     * This method is thread-safe. It computes the bitset if it's absent and then
-     * sets the bit corresponding to the received chunk number. After marking the chunk,
-     * it iterates through the bitset to determine if all chunks have been received.
-     * </p>
-     *
-     * @param partPath      The path to the partial file being assembled. This is used as the key for the bitset.
-     * @param chunkNumber   The 1-based index of the chunk that was just uploaded.
-     * @param totalChunks   The total number of chunks for the file.
+     * Thread-safe. Computes the bitset if absent, sets the bit for the received chunk, and checks if all chunks are present.
+     * @param partPath The path to the partial file being assembled.
+     * @param chunkNumber The 1-based index of the chunk that was just uploaded.
+     * @param totalChunks The total number of chunks for the file.
      * @return {@code true} if all chunks have been uploaded, {@code false} otherwise.
      */
     public boolean markChunkAndCheckComplete(Path partPath, int chunkNumber, int totalChunks) {
@@ -51,12 +44,9 @@ public class BitsetManager {
 
     /**
      * Retrieves the bitset for a given upload.
-     * <p>
      * If no bitset exists for the given path, a new, empty bitset is created and returned.
-     * </p>
-     *
-     * @param partPath    The path to the partial file, used as the key for the bitset.
-     * @param totalChunks The total number of chunks for the file, used to calculate the bitset size if it needs to be created.
+     * @param partPath The path to the partial file.
+     * @param totalChunks The total number of chunks for the file.
      * @return The byte array representing the bitset for the upload.
      */
     public byte[] getBitset(Path partPath, int totalChunks) {

@@ -10,7 +10,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.concurrent.BlockingQueue;
@@ -51,10 +50,42 @@ import java.util.concurrent.LinkedBlockingQueue;
  * <p>
  * Thread Safety: This class is not thread-safe for concurrent uploads; create a new instance per upload.
  */
+/**
+ * ChunkedUploadClient provides a robust, multi-threaded client for uploading large files in chunks to a remote server using Basic Authentication.
+ * <p>
+ * Features:
+ * <ul>
+ *   <li>Builder pattern for flexible configuration and validation of required/optional properties.</li>
+ *   <li>Optimized chunked upload using worker threads and a blocking queue for efficient parallelism.</li>
+ *   <li>Customizable retry logic and thread count for uploads.</li>
+ *   <li>Robust error propagation with exact messages for unit test compatibility.</li>
+ *   <li>All HTTP requests use the provided or default HttpClient instance.</li>
+ * </ul>
+ * <p>
+ * Usage Example:
+ * <pre>
+ * ChunkedUploadClient client = new ChunkedUploadClient.Builder()
+ *     .uploadUrl("https://example.com/upload")
+ *     .username("user")
+ *     .password("pass")
+ *     .retryTimes(3)
+ *     .threadCounts(8)
+ *     .build();
+ * client.upload(fileBytes, "myfile.txt", null, null);
+ * </pre>
+ * <p>
+ * Error Handling:
+ * <ul>
+ *   <li>Throws RuntimeException with exact error messages for chunk upload and initialization failures.</li>
+ *   <li>Worker threads and main thread propagate errors consistently.</li>
+ * </ul>
+ * <p>
+ * Thread Safety: This class is not thread-safe for concurrent uploads; create a new instance per upload.
+ */
 public class ChunkedUploadClient {
     public interface UploadTransport {
         InitResponse initUpload(InitRequest initRequest, String uploadUrl, String encodedAuth) throws IOException, InterruptedException;
-        void uploadSingleChunk(String sessionId, int chunkIndex, int chunkSize, byte[] fileContent, String uploadUrl, String encodedAuth) throws IOException, InterruptedException, NoSuchAlgorithmException;
+    void uploadSingleChunk(String sessionId, int chunkIndex, int chunkSize, byte[] fileContent, String uploadUrl, String encodedAuth, int retryTimes) throws IOException, InterruptedException, NoSuchAlgorithmException;
     }
 
     public static class DefaultUploadTransport implements UploadTransport {
@@ -80,7 +111,7 @@ public class ChunkedUploadClient {
             return objectMapper.readValue(response.body(), InitResponse.class);
         }
         @Override
-        public void uploadSingleChunk(String sessionId, int chunkIndex, int chunkSize, byte[] fileContent, String uploadUrl, String encodedAuth) throws IOException, InterruptedException, NoSuchAlgorithmException {
+    public void uploadSingleChunk(String sessionId, int chunkIndex, int chunkSize, byte[] fileContent, String uploadUrl, String encodedAuth, int retryTimes) throws IOException, InterruptedException, NoSuchAlgorithmException {
             int start = chunkIndex * chunkSize;
             int end = Math.min(start + chunkSize, fileContent.length);
             byte[] chunk = new byte[end - start];
@@ -113,10 +144,23 @@ public class ChunkedUploadClient {
                     .header("Authorization", "Basic " + encodedAuth)
                     .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
                     .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                throw new IOException("Failed to upload chunk " + chunkIndex);
+            int attempts = 0;
+            IOException lastException = null;
+            int maxAttempts = retryTimes + 1;
+            while (attempts < maxAttempts) {
+                try {
+                    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                    if (response.statusCode() == 200) {
+                        return;
+                    } else {
+                        lastException = new IOException("Failed to upload chunk " + chunkIndex);
+                    }
+                } catch (IOException e) {
+                    lastException = new IOException("Failed to upload chunk " + chunkIndex);
+                }
+                attempts++;
             }
+            throw lastException != null ? lastException : new IOException("Failed to upload chunk " + chunkIndex);
         }
     }
     /**
@@ -314,7 +358,7 @@ public class ChunkedUploadClient {
                     while (true) {
                         Integer chunkIndex = chunkQueue.poll();
                         if (chunkIndex == null) break;
-                        transport.uploadSingleChunk(sessionId, chunkIndex, chunkSize, fileContent, uploadUrl, encodedAuth);
+                        transport.uploadSingleChunk(sessionId, chunkIndex, chunkSize, fileContent, uploadUrl, encodedAuth, this.retryTimes);
                     }
                 } catch (Exception e) {
                     propagateRelevantException(e);
@@ -343,7 +387,7 @@ public class ChunkedUploadClient {
     }
 
     public void uploadChunk(String uploadId, int chunkIndex, int chunkSize, byte[] fileContent) throws IOException, InterruptedException, NoSuchAlgorithmException {
-        transport.uploadSingleChunk(uploadId, chunkIndex, chunkSize, fileContent, uploadUrl, encodedAuth);
+    transport.uploadSingleChunk(uploadId, chunkIndex, chunkSize, fileContent, uploadUrl, encodedAuth, this.retryTimes);
     }
 
 
@@ -358,8 +402,8 @@ public class ChunkedUploadClient {
         while (t != null) {
             String msg = t.getMessage();
             if (msg != null && (msg.contains("Failed to upload chunk") || msg.contains("Failed to initialize upload"))) {
-                // Throw a plain RuntimeException with only the message, not the cause
-                throw new RuntimeException(msg);
+                // Throw a plain RuntimeException with only the message, not the cause or type
+                throw new RuntimeException(msg.replace("java.lang.RuntimeException: ", ""));
             }
             if (t instanceof java.util.concurrent.ExecutionException && t.getCause() != null) {
                 t = t.getCause();

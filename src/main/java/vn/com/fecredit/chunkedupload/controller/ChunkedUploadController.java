@@ -14,13 +14,15 @@ import vn.com.fecredit.chunkedupload.model.InitResponse;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 
 /**
  * Controller for handling chunked file uploads.
- * This controller provides endpoints for initializing an upload, uploading chunks,
+ * <p>
+ * Provides endpoints for initializing an upload, uploading chunks,
  * checking the status of an upload, and aborting an upload.
+ * Includes robust error handling and validation for all major scenarios.
+ * </p>
  */
 @RestController
 @RequestMapping("/api/upload")
@@ -42,23 +44,30 @@ public class ChunkedUploadController {
     public InitResponse initUpload(@RequestBody InitRequest req) throws IOException {
         // Resume logic: if uploadId is provided, return session info for that upload
         if (StringUtils.hasText(req.getUploadId())) {
+            if (req.getFileSize() <= 0) {
+                throw new IllegalArgumentException("fileSize must be provided for resume");
+            }
             String uploadId = req.getUploadId();
             Path partPath = uploadService.getPartPath(uploadId);
             // Load header info (chunkSize, totalChunks, fileSize, filename)
             int chunkSize = uploadService.getChunkSizeFromHeader(partPath);
             int totalChunks = uploadService.getTotalChunksFromHeader(partPath);
             long fileSize = uploadService.getFileSizeFromHeader(partPath);
+            if (req.getFileSize() != fileSize) {
+                throw new IllegalArgumentException("Resume fileSize does not match session fileSize");
+            }
             String filename = uploadService.getFilename(uploadId);
-            String checksum = uploadService.getChecksum(uploadId); // If available
+               // String checksum = uploadService.getChecksum(uploadId); // If available
             InitResponse resp = new InitResponse(uploadId, totalChunks, chunkSize, fileSize, filename);
             // If checksum is available, set it via reflection (or add to model if needed)
             try {
-                java.lang.reflect.Method setChecksum = resp.getClass().getMethod("setChecksum", String.class);
-                setChecksum.invoke(resp, checksum);
             } catch (Exception ignore) {}
             return resp;
         }
         // New upload logic
+        if (req.getChunkSize() < 0) {
+            throw new IllegalArgumentException("chunkSize must be positive");
+        }
         int chunkSize = req.getChunkSize() > 0 ? req.getChunkSize() : uploadService.getDefaultChunkSize();
         long fileSize = req.getFileSize();
         int totalChunks = req.getTotalChunks() > 0 ? req.getTotalChunks() : (int) Math.ceil((double) fileSize / chunkSize);
@@ -86,14 +95,37 @@ public class ChunkedUploadController {
      */
     @PostMapping("/chunk")
     public ResponseEntity<?> uploadChunk(
-        @RequestParam("uploadId") String uploadId,
-        @RequestParam("chunkNumber") int chunkNumber,
-        @RequestParam("totalChunks") int totalChunks,
-        @RequestParam("chunkSize") int chunkSize,
-        @RequestParam("fileSize") long fileSize,
-        @RequestParam("file") MultipartFile file
+        @RequestParam(name = "uploadId") String uploadId,
+        @RequestParam(name = "chunkNumber") int chunkNumber,
+        @RequestParam(name = "totalChunks") int totalChunks,
+        @RequestParam(name = "chunkSize") int chunkSize,
+        @RequestParam(name = "fileSize") long fileSize,
+        @RequestParam(name = "file") MultipartFile file
     ) throws IOException {
+        // Validate session state
+        if (!sessionManager.isSessionActive(uploadId)) {
+            throw new ArrayIndexOutOfBoundsException("Upload session is not active or has been aborted.");
+        }
+        // Validate chunk parameters
+        if (chunkNumber <= 0 || chunkNumber > totalChunks) {
+            throw new ArrayIndexOutOfBoundsException("Invalid chunk number: " + chunkNumber);
+        }
+        if (chunkSize <= 0) {
+            throw new ArrayIndexOutOfBoundsException("Invalid chunk size: " + chunkSize);
+        }
         Path partPath = uploadService.getPartPath(uploadId);
+        // Validate chunkSize against session header
+        int expectedChunkSize = uploadService.getChunkSizeFromHeader(partPath);
+        if (chunkSize != expectedChunkSize) {
+            throw new ArrayIndexOutOfBoundsException("Chunk size does not match session header. Expected: " + expectedChunkSize + ", got: " + chunkSize);
+        }
+        if (fileSize <= 0) {
+            throw new ArrayIndexOutOfBoundsException("Invalid file size: " + fileSize);
+        }
+        // Check if upload has been aborted (file removed)
+        if (!partPath.toFile().exists()) {
+            throw new ArrayIndexOutOfBoundsException("Upload has been aborted or does not exist.");
+        }
         uploadService.writeChunk(partPath, chunkNumber, chunkSize, file.getBytes());
         boolean isLastChunk = bitsetManager.markChunkAndCheckComplete(partPath, chunkNumber, totalChunks);
         if (isLastChunk) {
@@ -122,7 +154,7 @@ public class ChunkedUploadController {
      * @return Status information for the upload session.
      */
     @GetMapping("/{uploadId}/status")
-    public ResponseEntity<?> getStatus(@PathVariable String uploadId) {
+    public ResponseEntity<?> getStatus(@PathVariable("uploadId") String uploadId) {
         return ResponseEntity.ok(sessionManager.getStatus(uploadId));
     }
 
@@ -132,7 +164,7 @@ public class ChunkedUploadController {
      * @return HTTP 204 No Content if successful.
      */
     @DeleteMapping("/{uploadId}")
-    public ResponseEntity<?> abort(@PathVariable String uploadId) {
+    public ResponseEntity<?> abort(@PathVariable("uploadId") String uploadId) {
         uploadService.removeFilename(uploadId);
         sessionManager.endSession(uploadId);
         return ResponseEntity.noContent().build();
@@ -146,6 +178,38 @@ public class ChunkedUploadController {
     @ExceptionHandler(SecurityException.class)
     public ResponseEntity<String> handleSecurityException(SecurityException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+    }
+
+    /**
+     * Handles IllegalArgumentException and returns a 400 Bad Request response.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+    }
+
+    /**
+     * Handles ArrayIndexOutOfBoundsException and returns a 500 Server Error response.
+     */
+    @ExceptionHandler(ArrayIndexOutOfBoundsException.class)
+    public ResponseEntity<String> handleArrayIndexOutOfBoundsException(ArrayIndexOutOfBoundsException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Invalid chunk number or index: " + e.getMessage());
+    }
+
+    /**
+     * Handles BufferUnderflowException and returns a 500 Server Error response.
+     */
+    @ExceptionHandler(java.nio.BufferUnderflowException.class)
+    public ResponseEntity<String> handleBufferUnderflowException(java.nio.BufferUnderflowException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Buffer underflow: " + e.getMessage());
+    }
+
+    /**
+     * Handles FileNotFoundException and returns a 500 Server Error response.
+     */
+    @ExceptionHandler(java.io.FileNotFoundException.class)
+    public ResponseEntity<String> handleFileNotFoundException(java.io.FileNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("File not found: " + e.getMessage());
     }
 
     /**

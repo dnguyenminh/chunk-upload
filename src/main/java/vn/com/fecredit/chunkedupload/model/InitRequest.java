@@ -25,42 +25,82 @@ public class InitRequest {
      */
     private String filename;
 
+    /**
+     * Gets the upload ID.
+     * @return The upload ID, or null if starting a new upload.
+     */
     public String getUploadId() {
         return uploadId;
     }
 
+    /**
+     * Sets the upload ID.
+     * @param uploadId The upload ID to set.
+     */
     public void setUploadId(String uploadId) {
         this.uploadId = uploadId;
     }
 
+    /**
+     * Gets the total number of chunks.
+     * @return The total number of chunks.
+     */
     public int getTotalChunks() {
         return totalChunks;
     }
 
+    /**
+     * Sets the total number of chunks.
+     * @param totalChunks The total number of chunks.
+     */
     public void setTotalChunks(int totalChunks) {
         this.totalChunks = totalChunks;
     }
 
+    /**
+     * Gets the chunk size in bytes.
+     * @return The chunk size in bytes.
+     */
     public int getChunkSize() {
         return chunkSize;
     }
 
+    /**
+     * Sets the chunk size in bytes.
+     * @param chunkSize The chunk size in bytes.
+     */
     public void setChunkSize(int chunkSize) {
         this.chunkSize = chunkSize;
     }
 
+    /**
+     * Gets the total file size in bytes.
+     * @return The total file size in bytes.
+     */
     public long getFileSize() {
         return fileSize;
     }
 
+    /**
+     * Sets the total file size in bytes.
+     * @param fileSize The total file size in bytes.
+     */
     public void setFileSize(long fileSize) {
         this.fileSize = fileSize;
     }
 
+    /**
+     * Gets the filename being uploaded.
+     * @return The filename.
+     */
     public String getFilename() {
         return filename;
     }
 
+    /**
+     * Sets the filename being uploaded.
+     * @param filename The filename.
+     */
     public void setFilename(String filename) {
         this.filename = filename;
     }

@@ -11,6 +11,14 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * chunked upload RESTful service.
  * </p>
  */
+/**
+ * Main application class for the chunked file upload service.
+ * <p>
+ * This class serves as the entry point for the Spring Boot application.
+ * It enables auto-configuration and component scanning to bootstrap the
+ * chunked upload RESTful service.
+ * </p>
+ */
 @SpringBootApplication
 public class UploadApplication {
     /**
