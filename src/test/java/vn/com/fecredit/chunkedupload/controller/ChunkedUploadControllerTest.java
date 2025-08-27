@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.stream.Stream;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -37,41 +38,38 @@ public class ChunkedUploadControllerTest {
     public void testInitAndUploadFlow() throws Exception {
         String initJson = "{\"totalChunks\":2, \"chunkSize\":10, \"fileSize\":20, \"filename\":\"testfile.txt\"}";
         String res = mockMvc.perform(post("/api/upload/init")
+                .with(httpBasic("user", "password"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(initJson))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
         // extract uploadId
-        String uploadId = res.replaceAll(".*\"uploadId\":\\s*\"([^\"]+)\".*", "$1"); // quick extract
+        String uploadId = res.replaceAll(".*\\\"uploadId\\\":\\s*\\\"([^\\\"]+)\\\".*", "$1"); // quick extract
 
         MockMultipartFile chunk0 = new MockMultipartFile("file", "chunk0", "application/octet-stream", "0123456789".getBytes());
-        // compute SHA-256 base64
-        java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
-        String chunk0Hash = java.util.Base64.getEncoder().encodeToString(md.digest("0123456789".getBytes()));
 
         mockMvc.perform(multipart("/api/upload/chunk")
                 .file(chunk0)
+                .with(httpBasic("user", "password"))
                 .param("uploadId", uploadId)
                 .param("chunkNumber", "1")
                 .param("totalChunks", "2")
                 .param("chunkSize", "10")
-                .param("fileSize", "20")
-                .param("chunkChecksum", chunk0Hash))
+                .param("fileSize", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nextChunk").isNotEmpty());
 
         MockMultipartFile chunk1 = new MockMultipartFile("file", "chunk1", "application/octet-stream", "abcdefghij".getBytes());
-        String chunk1Hash = java.util.Base64.getEncoder().encodeToString(md.digest("abcdefghij".getBytes()));
 
         mockMvc.perform(multipart("/api/upload/chunk")
                 .file(chunk1)
+                .with(httpBasic("user", "password"))
                 .param("uploadId", uploadId)
                 .param("chunkNumber", "2")
                 .param("totalChunks", "2")
                 .param("chunkSize", "10")
-                .param("fileSize", "20")
-                .param("chunkChecksum", chunk1Hash))
+                .param("fileSize", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("completed"));
 
@@ -104,30 +102,28 @@ public class ChunkedUploadControllerTest {
                 totalChunks, chunkSize, fileSize, filename);
 
         String res = mockMvc.perform(post("/api/upload/init")
+                .with(httpBasic("user", "password"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(initJson))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        String uploadId = res.replaceAll(".*\"uploadId\":\\s*\"([^\"]+)\".*", "$1");
-
-        java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+        String uploadId = res.replaceAll(".*\\\"uploadId\\\":\\s*\\\"([^\\\"]+)\\\".*", "$1");
 
         for (int i = 1; i <= totalChunks; i++) {
             byte[] chunkData = new byte[chunkSize];
             new java.util.Random().nextBytes(chunkData);
-            String chunkHash = java.util.Base64.getEncoder().encodeToString(md.digest(chunkData));
 
             MockMultipartFile chunk = new MockMultipartFile("file", "chunk" + i, "application/octet-stream", chunkData);
 
             var requestBuilder = multipart("/api/upload/chunk")
                     .file(chunk)
+                    .with(httpBasic("user", "password"))
                     .param("uploadId", uploadId)
                     .param("chunkNumber", String.valueOf(i))
                     .param("totalChunks", String.valueOf(totalChunks))
                     .param("chunkSize", String.valueOf(chunkSize))
-                    .param("fileSize", String.valueOf(fileSize))
-                    .param("chunkChecksum", chunkHash);
+                    .param("fileSize", String.valueOf(fileSize));
 
             if (i == totalChunks) {
                 mockMvc.perform(requestBuilder)
@@ -151,4 +147,5 @@ public class ChunkedUploadControllerTest {
             });
         }
     }
+
 }

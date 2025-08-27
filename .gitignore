@@ -3,6 +3,10 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
+upload/
+
+# Removed explicit assembleFile call from client implementation. The server now automatically assembles the file after all chunks are received.
+# No client-side request is needed for file assembly.
 
 ### IntelliJ IDEA ###
 .idea/modules.xml

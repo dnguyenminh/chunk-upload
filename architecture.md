@@ -10,6 +10,7 @@
 2. Server writes the chunk into `storage/<fileId>.bin`.
 3. Server updates `storage/<fileId>.hdr` to mark the chunk as uploaded.
 4. Server responds whether upload is complete.
+5. The client implementation no longer calls an explicit assemble/merge endpoint after all chunks are uploaded. The server automatically assembles the file when all chunks are received.
 
 ## Design Choices
 - **No Database**: Header files act as persistent state.

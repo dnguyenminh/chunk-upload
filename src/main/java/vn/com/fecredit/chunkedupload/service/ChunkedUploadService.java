@@ -15,8 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * This service manages the lifecycle of a file upload, from creating temporary part files
  * to assembling the final complete file. It uses a dedicated directory for in-progress uploads
- * and another for completed files. To ensure thread safety during concurrent chunk writes for
- * the same upload, it employs a system of per-upload locks.
+ * and another for completed files.
  * </p>
  */
 @Service
@@ -27,7 +26,6 @@ public class ChunkedUploadService {
 
     /**
      * Initializes the service by creating the necessary directories for in-progress and completed uploads.
-     * This constructor is called once at application startup.
      * @throws IOException If an I/O error occurs while creating the directories.
      */
     public ChunkedUploadService() throws IOException {
@@ -54,7 +52,7 @@ public class ChunkedUploadService {
     }
 
     /**
-     * Removes the stored filename for an upload session, typically after completion or abortion.
+     * Removes the stored filename for an upload session.
      * @param uploadId The unique identifier for the upload.
      */
     public void removeFilename(String uploadId) {
@@ -64,7 +62,7 @@ public class ChunkedUploadService {
     /**
      * Constructs the path to the temporary partial file for an upload.
      * @param uploadId The unique identifier for the upload.
-     * @return The {@link Path} to the partial file (e.g., "uploads/in-progress/uploadId.part").
+     * @return The {@link Path} to the partial file.
      */
     public Path getPartPath(String uploadId) {
         return inProgressDir.resolve(uploadId + ".part");
@@ -72,9 +70,8 @@ public class ChunkedUploadService {
 
     /**
      * Constructs the final destination path for a completed file.
-     * The final name is a combination of the upload ID and the original filename.
      * @param uploadId The unique identifier for the upload.
-     * @return The final {@link Path} for the completed file (e.g., "uploads/complete/uploadId_original.txt").
+     * @return The final {@link Path} for the completed file.
      */
     public Path getFinalPath(String uploadId) {
         String filename = getFilename(uploadId);
@@ -83,8 +80,7 @@ public class ChunkedUploadService {
 
     /**
      * Creates and writes a header to a new partial file or validates the header of an existing one.
-     * The header contains metadata required to manage and assemble the file. The file is also
-     * pre-allocated to its full expected size to reserve disk space.
+     * The file is also pre-allocated to its full expected size.
      * <p>Header format (Big Endian):
      * - Magic Number (4 bytes): 0xCAFECAFE
      * - Total Chunks (4 bytes)
@@ -93,11 +89,11 @@ public class ChunkedUploadService {
      * - Bitset (variable bytes)
      * </p>
      * @param partPath The path to the partial file.
-     * @param totalChunks The total number of chunks the file is divided into.
-     * @param chunkSize The size of each individual chunk in bytes.
-     * @param fileSize The total size of the original file in bytes.
-     * @throws IOException If an I/O error occurs during file access.
-     * @throws IllegalStateException If the file exists but its header parameters do not match the provided ones.
+     * @param totalChunks The total number of chunks.
+     * @param chunkSize The size of each chunk in bytes.
+     * @param fileSize The total size of the original file.
+     * @throws IOException If an I/O error occurs.
+     * @throws IllegalStateException If the file exists but its header parameters do not match.
      */
     public void createOrValidateHeader(Path partPath, int totalChunks, int chunkSize, long fileSize) throws IOException {
         int bitsetBytes = (totalChunks + 7) / 8;
@@ -113,8 +109,6 @@ public class ChunkedUploadService {
                 header.putLong(fileSize);
                 header.put(new byte[bitsetBytes]); // Empty bitset
                 header.flip();
-                // A partial write would throw an IOException, so the return value is not checked
-                // noinspection ResultOfMethodCallIgnored
                 ch.write(header, 0);
                 raf.setLength(headerSize + (long) totalChunks * chunkSize);
             } else {
@@ -157,13 +151,6 @@ public class ChunkedUploadService {
         public long fileSize;
         public byte[] bitset;
 
-        /**
-         * Constructs a new Header instance.
-         * @param totalChunks Total number of chunks.
-         * @param chunkSize Size of each chunk in bytes.
-         * @param fileSize Total size of the file in bytes.
-         * @param bitset The bitset indicating received chunks.
-         */
         public Header(int totalChunks, int chunkSize, long fileSize, byte[] bitset) {
             this.totalChunks = totalChunks;
             this.chunkSize = chunkSize;
@@ -174,7 +161,6 @@ public class ChunkedUploadService {
 
     /**
      * Writes a single data chunk to the correct position in the partial file.
-     * The position is calculated based on the chunk number and the header size.
      * @param partPath The path to the partial file.
      * @param chunkNumber The 1-based index of the chunk to write.
      * @param chunkSize The size of the chunk.
@@ -186,19 +172,15 @@ public class ChunkedUploadService {
         try (var raf = new java.io.RandomAccessFile(partPath.toFile(), "rw");
              var ch = raf.getChannel()) {
             var h = readHeader(ch);
-            long headerSize = 4 + 4 + 4 + 8 + h.bitset.length;
+            long headerSize = 20 + h.bitset.length;
             long offset = headerSize + (long) idx * chunkSize;
             ch.position(offset);
-            // A partial write would throw an IOException, so the return value is not checked
-            // noinspection ResultOfMethodCallIgnored
             ch.write(java.nio.ByteBuffer.wrap(data));
         }
     }
 
     /**
      * Assembles the final file by copying the data portion from the partial file.
-     * This method reads from the partial file, skipping the header, and writes the content
-     * to the final destination path.
      * @param partPath The path to the partial file.
      * @param finalPath The destination path for the final, assembled file.
      * @param fileSize The total size of the file.
@@ -206,7 +188,7 @@ public class ChunkedUploadService {
      * @throws IOException If an I/O error occurs during file transfer.
      */
     public void assembleFile(Path partPath, Path finalPath, long fileSize, byte[] bitset) throws IOException {
-        long headerSize = 4 + 4 + 4 + 8 + bitset.length;
+        long headerSize = 20 + bitset.length;
         try (var src = FileChannel.open(partPath, java.nio.file.StandardOpenOption.READ);
              var dst = FileChannel.open(finalPath, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.WRITE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
             src.transferTo(headerSize, fileSize, dst);

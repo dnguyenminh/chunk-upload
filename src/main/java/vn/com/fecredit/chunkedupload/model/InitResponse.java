@@ -1,12 +1,17 @@
 package vn.com.fecredit.chunkedupload.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  * Response for upload initialization, containing uploadId and file parameters.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class InitResponse {
     /**
      * The unique identifier for the upload session.
      */
+    @JsonProperty("sessionId")
     public String uploadId;
     /**
      * The total number of chunks the file is divided into.
@@ -26,6 +31,12 @@ public class InitResponse {
     public String filename;
 
     /**
+     * No-arg constructor for Jackson deserialization.
+     */
+    public InitResponse() {
+    }
+
+    /**
      * Constructs a new InitResponse.
      * @param uploadId The unique identifier for the upload session.
      * @param totalChunks The total number of chunks.
@@ -38,6 +49,46 @@ public class InitResponse {
         this.totalChunks = totalChunks;
         this.chunkSize = chunkSize;
         this.fileSize = fileSize;
+        this.filename = filename;
+    }
+
+    public String getUploadId() {
+        return uploadId;
+    }
+
+    public void setUploadId(String uploadId) {
+        this.uploadId = uploadId;
+    }
+
+    public int getTotalChunks() {
+        return totalChunks;
+    }
+
+    public void setTotalChunks(int totalChunks) {
+        this.totalChunks = totalChunks;
+    }
+
+    public int getChunkSize() {
+        return chunkSize;
+    }
+
+    public void setChunkSize(int chunkSize) {
+        this.chunkSize = chunkSize;
+    }
+
+    public long getFileSize() {
+        return fileSize;
+    }
+
+    public void setFileSize(long fileSize) {
+        this.fileSize = fileSize;
+    }
+
+    public String getFilename() {
+        return filename;
+    }
+
+    public void setFilename(String filename) {
         this.filename = filename;
     }
 }

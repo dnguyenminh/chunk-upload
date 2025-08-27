@@ -2,6 +2,11 @@
 
 This project implements a resumable file upload server in Java (Spring Boot) with a modular architecture. It stores file chunks and maintains a simple header file to track uploaded chunks, using a dedicated directory structure for in-progress and completed uploads.
 
+## Client Implementation Update
+- The Java client (`ChunkedUploadClient`) no longer calls an explicit assemble/merge endpoint after uploading all chunks. The server automatically assembles the file once all chunks are received.
+- The client uploads all chunks in parallel using worker threads and a blocking queue, with robust error propagation and retry logic.
+- The API and server behavior remain unchanged: the server assembles the file as soon as all chunks are present.
+
 ## Features
 - Chunked upload with resume support
 - File header to track uploaded chunks
@@ -69,7 +74,6 @@ sequenceDiagram
         Controller->>Service: write chunk
         Controller->>BitsetManager: mark chunk, check complete
         alt Last chunk
-            Controller->>Service: assemble file as <uploadId>_<filename>
             Controller->>SessionManager: end session
             Controller-->>Client: status=completed, finalPath, nextChunk=null
         else Not last chunk
@@ -123,4 +127,3 @@ classDiagram
 ```bash
 ./gradlew build
 ./gradlew run
-```
