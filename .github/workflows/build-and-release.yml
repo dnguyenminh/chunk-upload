@@ -46,7 +46,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./server/build/libs/server-1.0-SNAPSHOT.jar
+          asset_path: ./server/build/libs/*.jar
           asset_name: chunked-upload-server.jar
           asset_content_type: application/java-archive
 
@@ -56,6 +56,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./client/build/libs/client-1.0-SNAPSHOT.jar
+          asset_path: ./client/build/libs/*.jar
           asset_name: chunked-upload-client.jar
           asset_content_type: application/java-archive
