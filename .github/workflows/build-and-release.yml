@@ -43,8 +43,8 @@ jobs:
       - name: Get Server JAR Path
         id: get_server_jar_path
         run: |
-          echo "path=$(ls server/build/libs/*.jar)" >> $GITHUB_OUTPUT
-          echo "Server JAR path: $(ls server/build/libs/*.jar)"
+          echo "path=$(ls server/build/libs/*.jar | head -n 1)" >> $GITHUB_OUTPUT
+          echo "Server JAR path: $(ls server/build/libs/*.jar | head -n 1)"
 
       - name: Upload Server JAR
         uses: actions/upload-release-asset@v1
@@ -59,8 +59,8 @@ jobs:
       - name: Get Client JAR Path
         id: get_client_jar_path
         run: |
-          echo "path=$(ls client/build/libs/*.jar)" >> $GITHUB_OUTPUT
-          echo "Client JAR path: $(ls client/build/libs/*.jar)"
+          echo "path=$(ls client/build/libs/*.jar | head -n 1)" >> $GITHUB_OUTPUT
+          echo "Client JAR path: $(ls client/build/libs/*.jar | head -n 1)"
 
       - name: Upload Client JAR
         uses: actions/upload-release-asset@v1
