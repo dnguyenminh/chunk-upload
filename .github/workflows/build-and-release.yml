@@ -27,6 +27,12 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
+      - name: Delete existing release for tag
+        run: |
+          gh release delete ${{ github.ref_name }} --cleanup-tags --yes || echo "No existing release to delete"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
