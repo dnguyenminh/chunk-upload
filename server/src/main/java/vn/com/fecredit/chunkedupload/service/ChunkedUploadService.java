@@ -191,37 +191,49 @@ public class ChunkedUploadService {
     public void createOrValidateHeader(Path partPath, int totalChunks, int chunkSize, long fileSize) throws IOException {
         int bitsetBytes = (totalChunks + 7) / 8;
         int headerSize = 4 + 4 + 4 + 8 + bitsetBytes;
+
+        createParentDirectory(partPath);
+        log.debug("Creating or validating upload part file: {}", partPath);
+
+        try (var raf = new java.io.RandomAccessFile(partPath.toFile(), "rw");
+             var ch = raf.getChannel()) {
+            if (ch.size() == 0) {
+                createHeader(ch, headerSize, totalChunks, chunkSize, fileSize, bitsetBytes);
+                raf.setLength(headerSize + fileSize);
+            } else {
+                validateHeader(ch, totalChunks, chunkSize, fileSize);
+            }
+        }
+    }
+
+    private void createParentDirectory(Path partPath) throws IOException {
         java.nio.file.Path parentDir = partPath.getParent();
         if (parentDir != null && !java.nio.file.Files.exists(parentDir)) {
             log.debug("Creating parent directory for upload part: {}", parentDir);
             java.nio.file.Files.createDirectories(parentDir);
         }
-        log.debug("Creating or validating upload part file: {}", partPath);
-        try (var raf = new java.io.RandomAccessFile(partPath.toFile(), "rw");
-             var ch = raf.getChannel()) {
-            if (ch.size() == 0) {
-                // File is new, create header and pre-allocate space
-                var header = java.nio.ByteBuffer.allocate(headerSize).order(java.nio.ByteOrder.BIG_ENDIAN);
-                header.putInt(0xCAFECAFE); // Magic number
-                header.putInt(totalChunks);
-                header.putInt(chunkSize);
-                header.putLong(fileSize);
-                header.put(new byte[bitsetBytes]); // Empty bitset
-                header.flip();
-                int bytesWritten = ch.write(header, 0);
-                if (bytesWritten != headerSize) {
-                    log.warn("Not all header bytes written: expected={}, actual={}", headerSize, bytesWritten);
-                }
-                raf.setLength(headerSize + fileSize);
-            } else {
-                // File exists, validate its header
-                var h = readHeader(ch);
-                if (h.totalChunks != totalChunks || h.chunkSize != chunkSize || h.fileSize != fileSize) {
-                    log.error("Existing upload file header mismatch: header.totalChunks={}, expected={}; header.chunkSize={}, expected={}; header.fileSize={}, expected={}",
-                            h.totalChunks, totalChunks, h.chunkSize, chunkSize, h.fileSize, fileSize);
-                    throw new IllegalStateException("Existing upload file has different parameters");
-                }
-            }
+    }
+
+    private void createHeader(FileChannel ch, int headerSize, int totalChunks, int chunkSize, long fileSize, int bitsetBytes) throws IOException {
+        var header = java.nio.ByteBuffer.allocate(headerSize).order(java.nio.ByteOrder.BIG_ENDIAN);
+        header.putInt(0xCAFECAFE); // Magic number
+        header.putInt(totalChunks);
+        header.putInt(chunkSize);
+        header.putLong(fileSize);
+        header.put(new byte[bitsetBytes]); // Empty bitset
+        header.flip();
+        int bytesWritten = ch.write(header, 0);
+        if (bytesWritten != headerSize) {
+            log.warn("Not all header bytes written: expected={}, actual={}", headerSize, bytesWritten);
+        }
+    }
+
+    private void validateHeader(FileChannel ch, int totalChunks, int chunkSize, long fileSize) throws IOException {
+        var h = readHeader(ch);
+        if (h.totalChunks != totalChunks || h.chunkSize != chunkSize || h.fileSize != fileSize) {
+            log.error("Existing upload file header mismatch: header.totalChunks={}, expected={}; header.chunkSize={}, expected={}; header.fileSize={}, expected={}",
+                    h.totalChunks, totalChunks, h.chunkSize, chunkSize, h.fileSize, fileSize);
+            throw new IllegalStateException("Existing upload file has different parameters");
         }
     }
 

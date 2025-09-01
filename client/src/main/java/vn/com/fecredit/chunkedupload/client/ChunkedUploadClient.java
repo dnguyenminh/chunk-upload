@@ -16,9 +16,24 @@ import java.util.concurrent.*;
 
 public class ChunkedUploadClient {
 
+    /**
+     * Pluggable transport used to perform HTTP calls. Default implementation uses
+     * java.net.http.HttpClient. Tests can provide a mock implementation.
+     */
     public interface UploadTransport {
+        /**
+         * Calls the server /init endpoint to create or resume an upload session.
+         *
+         * @param initRequest init request payload
+         * @param uploadUrl   base upload URL (e.g. http://host:port/api/upload)
+         * @param encodedAuth Basic auth credentials encoded in Base64
+         * @return InitResponse from server
+         */
         InitResponse initUpload(InitRequest initRequest, String uploadUrl, String encodedAuth) throws IOException, InterruptedException;
 
+        /**
+         * Uploads a single chunk to the server /chunk endpoint.
+         */
         void uploadSingleChunk(String sessionId, int chunkIndex, int chunkSize, int totalChunks, byte[] fileContent, String uploadUrl, String encodedAuth, int retryTimes) throws IOException, InterruptedException, NoSuchAlgorithmException;
     }
 
@@ -26,13 +41,18 @@ public class ChunkedUploadClient {
         private final ObjectMapper objectMapper;
         private final HttpClient httpClient;
 
-        public DefaultUploadTransport(HttpClient httpClient) {
+    /**
+     * Default transport constructor.
+     *
+     * @param httpClient Optional HttpClient instance; if null, a default client is created.
+     */
+    public DefaultUploadTransport(HttpClient httpClient) {
             this.objectMapper = new ObjectMapper();
             this.httpClient = httpClient != null ? httpClient : HttpClient.newHttpClient();
         }
 
-        @Override
-        public InitResponse initUpload(InitRequest initRequest, String uploadUrl, String encodedAuth) throws IOException, InterruptedException {
+    @Override
+    public InitResponse initUpload(InitRequest initRequest, String uploadUrl, String encodedAuth) throws IOException, InterruptedException {
             String requestBody = objectMapper.writeValueAsString(initRequest);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(uploadUrl + "/init"))
@@ -47,8 +67,8 @@ public class ChunkedUploadClient {
             return objectMapper.readValue(response.body(), InitResponse.class);
         }
 
-        @Override
-        public void uploadSingleChunk(String sessionId, int chunkIndex, int chunkSize, int totalChunks, byte[] fileContent, String uploadUrl, String encodedAuth, int retryTimes) throws IOException, InterruptedException {
+    @Override
+    public void uploadSingleChunk(String sessionId, int chunkIndex, int chunkSize, int totalChunks, byte[] fileContent, String uploadUrl, String encodedAuth, int retryTimes) throws IOException, InterruptedException {
             int start = chunkIndex * chunkSize;
             int end = Math.min(start + chunkSize, fileContent.length);
             byte[] chunk = new byte[end - start];
@@ -86,7 +106,10 @@ public class ChunkedUploadClient {
             throw new RuntimeException(lastException);
         }
 
-        private HttpRequest buildMultipartRequest(String sessionId, int chunkIndex, int chunkSize, int totalChunks, int fileSize, byte[] chunk, String uploadUrl, String encodedAuth) {
+    /**
+     * Builds a multipart/form-data HttpRequest for uploading a chunk.
+     */
+    private HttpRequest buildMultipartRequest(String sessionId, int chunkIndex, int chunkSize, int totalChunks, int fileSize, byte[] chunk, String uploadUrl, String encodedAuth) {
             String boundary = "----Boundary" + java.util.UUID.randomUUID();
             String CRLF = "\r\n";
             byte[] header = buildMultipartHeader(boundary, CRLF, sessionId, chunkIndex, chunkSize, totalChunks, fileSize);
@@ -138,6 +161,15 @@ public class ChunkedUploadClient {
         this.transport = builder.transport != null ? builder.transport : new DefaultUploadTransport(builder.httpClient);
     }
 
+    /**
+     * Starts a new upload for the provided file content.
+     *
+     * @param fileContent file bytes
+     * @param fileName    original filename
+     * @param retryTimes  optional override for chunk retry count
+     * @param threadCounts optional override for number of parallel threads
+     * @return uploadId assigned by the server
+     */
     public String upload(byte[] fileContent, String fileName, Integer retryTimes, Integer threadCounts) {
         if (fileContent == null || fileContent.length == 0)
             throw new IllegalArgumentException("fileContent is required");
@@ -155,6 +187,13 @@ public class ChunkedUploadClient {
         }
     }
 
+    /**
+     * Resumes an existing upload by querying the server for missing chunks
+     * and re-uploading only those chunks.
+     *
+     * @param uploadId   upload session id returned by previous init
+     * @param fileContent entire file bytes used to re-send missing chunks
+     */
     public void resumeUpload(String uploadId, byte[] fileContent) {
         try {
             InitRequest initRequest = new InitRequest();

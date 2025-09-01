@@ -20,10 +20,10 @@ public class UploadApplication {
      * @param args Command line arguments passed to the application.
      */
     public static void main(String[] args) {
-        SpringApplication.run(UploadApplication.class, args);
-        // DEBUG: Print all beans of type TenantAccountRepository at startup
-        org.springframework.context.ApplicationContext ctx = org.springframework.boot.SpringApplication.run(UploadApplication.class, args);
-        String[] beanNames = ctx.getBeanNamesForType(vn.com.fecredit.chunkedupload.model.TenantAccountRepository.class);
-        log.debug("[DEBUG] TenantAccountRepository beans: {}", java.util.Arrays.toString(beanNames));
+    // Start the Spring Boot application
+    org.springframework.context.ApplicationContext ctx = SpringApplication.run(UploadApplication.class, args);
+    // DEBUG: Print all beans of type TenantAccountRepository at startup (helpful for integration troubleshooting)
+    String[] beanNames = ctx.getBeanNamesForType(vn.com.fecredit.chunkedupload.model.TenantAccountRepository.class);
+    log.debug("[DEBUG] TenantAccountRepository beans: {}", java.util.Arrays.toString(beanNames));
     }
 }

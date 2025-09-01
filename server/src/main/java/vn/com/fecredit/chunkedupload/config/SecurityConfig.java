@@ -16,10 +16,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * Security configuration for the chunked upload service.
- * <p>
- * Configures HTTP Basic authentication and disables CSRF for API endpoints.
- * Provides an in-memory user for testing and development.
- * </p>
+ *
+ * <p>Configures HTTP Basic authentication and disables CSRF for API endpoints.
+ * It wires a {@link vn.com.fecredit.chunkedupload.model.TenantAccountRepository} backed
+ * {@link org.springframework.security.core.userdetails.UserDetailsService} so tenant accounts
+ * stored in the database are used for authentication.</p>
  */
 @Configuration
 @EnableWebSecurity
@@ -49,9 +50,11 @@ public class SecurityConfig {
     }
 
     /**
-     * Provides an in-memory user details service for authentication.
+     * Provides a UserDetailsService backed by {@link TenantAccountRepository}.
+     * This allows tenant users stored in the database to authenticate via HTTP Basic.
      *
-     * @return The UserDetailsService containing a default user.
+     * @param tenantAccountRepository repository for tenant accounts
+     * @return UserDetailsService implementation
      */
     @Bean
     public UserDetailsService userDetailsService(TenantAccountRepository tenantAccountRepository) {
@@ -64,6 +67,10 @@ public class SecurityConfig {
         };
     }
 
+    /**
+     * Password encoder bean used by Spring Security. Uses a DelegatingPasswordEncoder
+     * with bcrypt as the default algorithm.
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         java.util.Map<String, org.springframework.security.crypto.password.PasswordEncoder> encoders = new java.util.HashMap<>();

@@ -13,7 +13,10 @@ public class UserController {
     private TenantAccountRepository tenantAccountRepository;
 
     /**
-     * List all users in the database (for integration test).
+     * Returns a list of tenant accounts. Intended for debugging and integration tests.
+     *
+     * @param authentication the caller's authentication principal
+     * @return list of tenant accounts
      */
     @GetMapping
     public ResponseEntity<?> listUsers(org.springframework.security.core.Authentication authentication) {
