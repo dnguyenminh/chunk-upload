@@ -26,6 +26,27 @@ public class InitRequest {
     private String filename;
 
     /**
+     * The tenant account ID for multi-tenant support.
+     */
+    private String tenantAccountId;
+
+    /**
+     * Gets the tenant account ID.
+     * @return The tenant account ID.
+     */
+    public String getTenantAccountId() {
+        return tenantAccountId;
+    }
+
+    /**
+     * Sets the tenant account ID.
+     * @param tenantAccountId The tenant account ID to set.
+     */
+    public void setTenantAccountId(String tenantAccountId) {
+        this.tenantAccountId = tenantAccountId;
+    }
+
+    /**
      * Gets the upload ID.
      * @return The upload ID, or null if starting a new upload.
      */

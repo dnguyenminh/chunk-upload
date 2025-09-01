@@ -24,13 +24,13 @@ public class BitsetManager {
      * Marks a chunk as received and checks if the entire file upload is complete.
      * Thread-safe. Computes the bitset if absent, sets the bit for the received chunk, and checks if all chunks are present.
      * @param partPath The path to the partial file being assembled.
-     * @param chunkNumber The 1-based index of the chunk that was just uploaded.
+     * @param chunkNumber The 0-based index of the chunk that was just uploaded.
      * @param totalChunks The total number of chunks for the file.
      * @return {@code true} if all chunks have been uploaded, {@code false} otherwise.
      */
     public boolean markChunkAndCheckComplete(Path partPath, int chunkNumber, int totalChunks) {
         byte[] bitset = bitsets.computeIfAbsent(partPath.toString(), k -> new byte[(totalChunks + 7) / 8]);
-        int idx = chunkNumber - 1;
+        int idx = chunkNumber;
         // Set the bit for the received chunk
         bitset[idx / 8] |= (byte) (1 << (idx % 8));
         // Check if all bits are set

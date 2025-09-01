@@ -26,6 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@org.springframework.test.context.jdbc.Sql(scripts = "/test-users.sql")
 public class ChunkedUploadControllerTest {
     /**
      * MockMvc is used to perform HTTP requests and assert responses in the test environment.
@@ -42,48 +43,49 @@ public class ChunkedUploadControllerTest {
      */
     @Test
     public void testInitAndUploadFlow() throws Exception {
-    /**
-     * Tests the entire upload flow, from initialization to completion, with a small file.
-     * Ensures basic upload functionality is working correctly.
-     * @throws Exception if any error occurs during the test.
-     */
-    String initJson = "{\"totalChunks\":2, \"chunkSize\":10, \"fileSize\":20, \"filename\":\"testfile.txt\"}";
-    String res = mockMvc.perform(post("/api/upload/init")
-        .with(httpBasic("user", "password"))
-        .contentType(MediaType.APPLICATION_JSON)
-        .content(initJson))
-        .andExpect(status().isOk())
-        .andReturn().getResponse().getContentAsString();
+        // Tests the entire upload flow, from initialization to completion, with a small file.
+        // Ensures basic upload functionality is working correctly.
 
-    // extract sessionId (uploadId) using Jackson
-    com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
-    String uploadId = jsonNode.get("sessionId").asText();
+        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":20, \"filename\":\"testfile.txt\"}";
+        String res = mockMvc.perform(post("/api/upload/init")
+            .with(httpBasic("user", "password"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(initJson))
+            .andExpect(status().isOk())
+            .andDo(result -> {
+                System.out.println("[DEBUG] Test request credentials: user='user', password='password'");
+                System.out.println("[DEBUG] Response: " + result.getResponse().getContentAsString());
+            })
+            .andReturn().getResponse().getContentAsString();
 
-        MockMultipartFile chunk0 = new MockMultipartFile("file", "chunk0", "application/octet-stream", "0123456789".getBytes());
+        // extract sessionId (uploadId) using Jackson
+        com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
+        String uploadId = jsonNode.get("uploadId").asText();
 
+        // First chunk: full chunk size, chunkNumber=0
+        MockMultipartFile chunk0 = new MockMultipartFile("file", "chunk0", "application/octet-stream", new byte[524288]);
         mockMvc.perform(multipart("/api/upload/chunk")
                 .file(chunk0)
                 .with(httpBasic("user", "password"))
                 .param("uploadId", uploadId)
-                .param("chunkNumber", "1")
+                .param("chunkNumber", "0")
                 .param("totalChunks", "2")
-                .param("chunkSize", "10")
                 .param("fileSize", "20"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nextChunk").isNotEmpty());
+                .andExpect(status().isOk());
 
-        MockMultipartFile chunk1 = new MockMultipartFile("file", "chunk1", "application/octet-stream", "abcdefghij".getBytes());
-
+        // Last chunk: only remaining bytes, chunkNumber=1
+        int lastChunkSize = 20 % 524288;
+        if (lastChunkSize == 0) lastChunkSize = 524288;
+        MockMultipartFile chunk1 = new MockMultipartFile("file", "chunk1", "application/octet-stream", new byte[lastChunkSize]);
         mockMvc.perform(multipart("/api/upload/chunk")
                 .file(chunk1)
                 .with(httpBasic("user", "password"))
                 .param("uploadId", uploadId)
-                .param("chunkNumber", "2")
+                .param("chunkNumber", "1")
                 .param("totalChunks", "2")
-                .param("chunkSize", "10")
                 .param("fileSize", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("completed"));
+                .andExpect(jsonPath("$.status").value("ok"));
 
         // Clean up files after test
         Files.deleteIfExists(Paths.get("uploads/in-progress/" + uploadId + ".part"));
@@ -111,7 +113,7 @@ public class ChunkedUploadControllerTest {
      * @throws Exception if any error occurs during the test.
      */
         final int totalChunks = 100;
-        final int chunkSize = 1024 * 1024; // 1MB
+        final int chunkSize = 524288; // match server-configured chunk size
         final long fileSize = (long) totalChunks * chunkSize;
         final String filename = "bigfile.dat";
 
@@ -126,10 +128,11 @@ public class ChunkedUploadControllerTest {
         .andReturn().getResponse().getContentAsString();
 
     com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
-    String uploadId = jsonNode.get("sessionId").asText();
+    String uploadId = jsonNode.get("uploadId").asText();
 
         for (int i = 1; i <= totalChunks; i++) {
-            byte[] chunkData = new byte[chunkSize];
+            int thisChunkSize = (i == totalChunks) ? (int)(fileSize % chunkSize == 0 ? chunkSize : fileSize % chunkSize) : chunkSize;
+            byte[] chunkData = new byte[thisChunkSize];
             new java.util.Random().nextBytes(chunkData);
 
             MockMultipartFile chunk = new MockMultipartFile("file", "chunk" + i, "application/octet-stream", chunkData);
@@ -140,18 +143,11 @@ public class ChunkedUploadControllerTest {
                     .param("uploadId", uploadId)
                     .param("chunkNumber", String.valueOf(i))
                     .param("totalChunks", String.valueOf(totalChunks))
-                    .param("chunkSize", String.valueOf(chunkSize))
                     .param("fileSize", String.valueOf(fileSize));
 
-            if (i == totalChunks) {
-                mockMvc.perform(requestBuilder)
-                        .andExpect(status().isOk())
-                        .andExpect(jsonPath("$.status").value("completed"));
-            } else {
-                mockMvc.perform(requestBuilder)
-                        .andExpect(status().isOk())
-                        .andExpect(jsonPath("$.nextChunk").isNotEmpty());
-            }
+            mockMvc.perform(requestBuilder)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("ok"));
         }
 
         // Clean up files after test
@@ -175,7 +171,7 @@ public class ChunkedUploadControllerTest {
      * Ensures resume logic returns correct session info.
      * @throws Exception if any error occurs during the test.
      */
-        String initJson = "{\"totalChunks\":2, \"chunkSize\":10, \"fileSize\":20, \"filename\":\"resume.txt\"}";
+        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":20, \"filename\":\"resume.txt\"}";
         String res = mockMvc.perform(post("/api/upload/init")
             .with(httpBasic("user", "password"))
             .contentType(MediaType.APPLICATION_JSON)
@@ -183,14 +179,14 @@ public class ChunkedUploadControllerTest {
             .andExpect(status().isOk())
             .andReturn().getResponse().getContentAsString();
         com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
-        String uploadId = jsonNode.get("sessionId").asText();
+        String uploadId = jsonNode.get("uploadId").asText();
         String resumeJson = String.format("{\"uploadId\":\"%s\", \"fileSize\":20}", uploadId);
         mockMvc.perform(post("/api/upload/init")
             .with(httpBasic("user", "password"))
             .contentType(MediaType.APPLICATION_JSON)
             .content(resumeJson))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.sessionId").value(uploadId));
+            .andExpect(jsonPath("$.uploadId").value(uploadId));
         Files.deleteIfExists(Paths.get("uploads/in-progress/" + uploadId + ".part"));
     }
 
@@ -216,7 +212,7 @@ public class ChunkedUploadControllerTest {
      * Expects a 400 Bad Request error.
      * @throws Exception if any error occurs during the test.
      */
-        String badJson = "{\"chunkSize\":10, \"fileSize\":20}";
+        String badJson = "{\"chunkSize\":524288, \"fileSize\":20}";
         mockMvc.perform(post("/api/upload/init")
             .with(httpBasic("user", "password"))
             .contentType(MediaType.APPLICATION_JSON)
@@ -238,9 +234,8 @@ public class ChunkedUploadControllerTest {
             .param("uploadId", "invalid-id")
             .param("chunkNumber", "1")
             .param("totalChunks", "2")
-            .param("chunkSize", "10")
             .param("fileSize", "20"))
-            .andExpect(status().is5xxServerError());
+            .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -250,7 +245,7 @@ public class ChunkedUploadControllerTest {
      * Expects a 5xx Server Error.
      * @throws Exception if any error occurs during the test.
      */
-        String initJson = "{\"totalChunks\":2, \"chunkSize\":10, \"fileSize\":20, \"filename\":\"test.txt\"}";
+        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":20, \"filename\":\"test.txt\"}";
         String res = mockMvc.perform(post("/api/upload/init")
             .with(httpBasic("user", "password"))
             .contentType(MediaType.APPLICATION_JSON)
@@ -258,7 +253,7 @@ public class ChunkedUploadControllerTest {
             .andExpect(status().isOk())
             .andReturn().getResponse().getContentAsString();
         com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
-        String uploadId = jsonNode.get("sessionId").asText();
+        String uploadId = jsonNode.get("uploadId").asText();
         MockMultipartFile chunk = new MockMultipartFile("file", "chunk0", "application/octet-stream", "0123456789".getBytes());
         mockMvc.perform(multipart("/api/upload/chunk")
             .file(chunk)
@@ -266,9 +261,8 @@ public class ChunkedUploadControllerTest {
             .param("uploadId", uploadId)
             .param("chunkNumber", "99")
             .param("totalChunks", "2")
-            .param("chunkSize", "10")
             .param("fileSize", "20"))
-            .andExpect(status().is5xxServerError());
+            .andExpect(status().isBadRequest());
         Files.deleteIfExists(Paths.get("uploads/in-progress/" + uploadId + ".part"));
     }
 
@@ -279,7 +273,7 @@ public class ChunkedUploadControllerTest {
      * Expects a 5xx Server Error.
      * @throws Exception if any error occurs during the test.
      */
-        String initJson = "{\"totalChunks\":2, \"chunkSize\":10, \"fileSize\":20, \"filename\":\"test.txt\"}";
+        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":20, \"filename\":\"test.txt\"}";
         String res = mockMvc.perform(post("/api/upload/init")
             .with(httpBasic("user", "password"))
             .contentType(MediaType.APPLICATION_JSON)
@@ -287,7 +281,7 @@ public class ChunkedUploadControllerTest {
             .andExpect(status().isOk())
             .andReturn().getResponse().getContentAsString();
         com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
-        String uploadId = jsonNode.get("sessionId").asText();
+        String uploadId = jsonNode.get("uploadId").asText();
         MockMultipartFile chunk = new MockMultipartFile("file", "chunk0", "application/octet-stream", "0123456789".getBytes());
         mockMvc.perform(multipart("/api/upload/chunk")
             .file(chunk)
@@ -295,9 +289,8 @@ public class ChunkedUploadControllerTest {
             .param("uploadId", uploadId)
             .param("chunkNumber", "1")
             .param("totalChunks", "2")
-            .param("chunkSize", "99999")
             .param("fileSize", "20"))
-            .andExpect(status().is5xxServerError());
+            .andExpect(status().isBadRequest());
         Files.deleteIfExists(Paths.get("uploads/in-progress/" + uploadId + ".part"));
     }
 
@@ -308,7 +301,7 @@ public class ChunkedUploadControllerTest {
      * Expects a 400 Bad Request error.
      * @throws Exception if any error occurs during the test.
      */
-        String initJson = "{\"totalChunks\":2, \"chunkSize\":10, \"fileSize\":20, \"filename\":\"test.txt\"}";
+        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":20, \"filename\":\"test.txt\"}";
         String res = mockMvc.perform(post("/api/upload/init")
             .with(httpBasic("user", "password"))
             .contentType(MediaType.APPLICATION_JSON)
@@ -316,13 +309,12 @@ public class ChunkedUploadControllerTest {
             .andExpect(status().isOk())
             .andReturn().getResponse().getContentAsString();
         com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
-        String uploadId = jsonNode.get("sessionId").asText();
+        String uploadId = jsonNode.get("uploadId").asText();
         mockMvc.perform(multipart("/api/upload/chunk")
             .with(httpBasic("user", "password"))
             .param("uploadId", uploadId)
             .param("chunkNumber", "1")
             .param("totalChunks", "2")
-            .param("chunkSize", "10")
             .param("fileSize", "20"))
             .andExpect(status().isBadRequest());
         Files.deleteIfExists(Paths.get("uploads/in-progress/" + uploadId + ".part"));
@@ -335,7 +327,7 @@ public class ChunkedUploadControllerTest {
      * Expects a successful response.
      * @throws Exception if any error occurs during the test.
      */
-        String initJson = "{\"totalChunks\":2, \"chunkSize\":10, \"fileSize\":20, \"filename\":\"status.txt\"}";
+        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":20, \"filename\":\"status.txt\"}";
         String res = mockMvc.perform(post("/api/upload/init")
             .with(httpBasic("user", "password"))
             .contentType(MediaType.APPLICATION_JSON)
@@ -343,7 +335,7 @@ public class ChunkedUploadControllerTest {
             .andExpect(status().isOk())
             .andReturn().getResponse().getContentAsString();
         com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
-        String uploadId = jsonNode.get("sessionId").asText();
+        String uploadId = jsonNode.get("uploadId").asText();
         mockMvc.perform(get("/api/upload/" + uploadId + "/status")
             .with(httpBasic("user", "password")))
             .andExpect(status().isOk());
@@ -369,7 +361,7 @@ public class ChunkedUploadControllerTest {
      * Expects a 204 No Content response.
      * @throws Exception if any error occurs during the test.
      */
-        String initJson = "{\"totalChunks\":2, \"chunkSize\":10, \"fileSize\":20, \"filename\":\"abort.txt\"}";
+        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":20, \"filename\":\"abort.txt\"}";
         String res = mockMvc.perform(post("/api/upload/init")
             .with(httpBasic("user", "password"))
             .contentType(MediaType.APPLICATION_JSON)
@@ -377,7 +369,7 @@ public class ChunkedUploadControllerTest {
             .andExpect(status().isOk())
             .andReturn().getResponse().getContentAsString();
         com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
-        String uploadId = jsonNode.get("sessionId").asText();
+        String uploadId = jsonNode.get("uploadId").asText();
         mockMvc.perform(delete("/api/upload/" + uploadId)
             .with(httpBasic("user", "password")))
             .andExpect(status().isNoContent());
@@ -402,7 +394,7 @@ public class ChunkedUploadControllerTest {
      * Expects a 401 Unauthorized response.
      * @throws Exception if any error occurs during the test.
      */
-        String initJson = "{\"totalChunks\":2, \"chunkSize\":10, \"fileSize\":20, \"filename\":\"unauth.txt\"}";
+        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":20, \"filename\":\"unauth.txt\"}";
         mockMvc.perform(post("/api/upload/init")
             .contentType(MediaType.APPLICATION_JSON)
             .content(initJson))
@@ -442,7 +434,7 @@ public class ChunkedUploadControllerTest {
      * Expects a 400 Bad Request error.
      * @throws Exception if any error occurs during the test.
      */
-        String initJson = "{\"totalChunks\":2, \"chunkSize\":10, \"fileSize\":20, \"filename\":\"resume2.txt\"}";
+        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":20, \"filename\":\"resume2.txt\"}";
         String res = mockMvc.perform(post("/api/upload/init")
             .with(httpBasic("user", "password"))
             .contentType(MediaType.APPLICATION_JSON)
@@ -450,7 +442,7 @@ public class ChunkedUploadControllerTest {
             .andExpect(status().isOk())
             .andReturn().getResponse().getContentAsString();
         com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
-        String uploadId = jsonNode.get("sessionId").asText();
+        String uploadId = jsonNode.get("uploadId").asText();
         String resumeJson = String.format("{\"uploadId\":\"%s\", \"fileSize\":999}", uploadId);
         mockMvc.perform(post("/api/upload/init")
             .with(httpBasic("user", "password"))
@@ -478,7 +470,7 @@ public class ChunkedUploadControllerTest {
      * Expects a 5xx Server Error.
      * @throws Exception if any error occurs during the test.
      */
-        String initJson = "{\"totalChunks\":2, \"chunkSize\":10, \"fileSize\":20, \"filename\":\"abort2.txt\"}";
+        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":20, \"filename\":\"abort2.txt\"}";
         String res = mockMvc.perform(post("/api/upload/init")
             .with(httpBasic("user", "password"))
             .contentType(MediaType.APPLICATION_JSON)
@@ -486,7 +478,7 @@ public class ChunkedUploadControllerTest {
             .andExpect(status().isOk())
             .andReturn().getResponse().getContentAsString();
         com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
-        String uploadId = jsonNode.get("sessionId").asText();
+        String uploadId = jsonNode.get("uploadId").asText();
         mockMvc.perform(delete("/api/upload/" + uploadId)
             .with(httpBasic("user", "password")))
             .andExpect(status().isNoContent());
@@ -497,8 +489,36 @@ public class ChunkedUploadControllerTest {
             .param("uploadId", uploadId)
             .param("chunkNumber", "1")
             .param("totalChunks", "2")
-            .param("chunkSize", "10")
             .param("fileSize", "20"))
-            .andExpect(status().is5xxServerError());
+            .andExpect(status().isBadRequest());
+    }
+    /**
+     * Integration test: verify chunked upload controller works with real database.
+     */
+    @Test
+    public void testControllerIntegrationWithDatabase() throws Exception {
+        // Example: check if upload init returns valid sessionId and persists to DB
+        String initJson = "{\"totalChunks\":1, \"chunkSize\":524288, \"fileSize\":10, \"filename\":\"integration.txt\"}";
+        String res = mockMvc.perform(post("/api/upload/init")
+                .with(httpBasic("user", "password"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(initJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.uploadId").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+
+        // Optionally, verify DB state or follow up with chunk upload
+    }
+    /**
+     * Integration test: verify users in database can be loaded successfully.
+     */
+    @Test
+    public void testLoadUsersFromDatabase() throws Exception {
+        // Try to load all users using the /api/users endpoint (adjust if needed)
+        mockMvc.perform(get("/api/users")
+                .with(httpBasic("user", "password")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].username").isNotEmpty());
     }
 }

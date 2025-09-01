@@ -27,6 +27,32 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
+      - name: Prepare client release zip
+        run: |
+          mkdir -p client-release/libs
+          mkdir -p client-release/dependencies
+          cp client/build/libs/chunked-upload-client.jar client-release/libs/
+          cp client/run-client.sh client-release/
+          cp client/run-client.bat client-release/
+          cp client/dependencies/download-dependencies.sh client-release/dependencies/
+          cp client/dependencies/download-dependencies.bat client-release/dependencies/
+          cd client-release
+          zip -r ../chunked-upload-client.zip .
+        shell: bash
+
+      - name: Prepare server release zip
+        run: |
+          mkdir -p server-release/libs
+          mkdir -p server-release/dependencies
+          cp server/build/libs/chunked-upload-server.jar server-release/libs/
+          cp server/run-server.sh server-release/
+          cp server/run-server.bat server-release/
+          cp server/dependencies/download-dependencies.sh server-release/dependencies/
+          cp server/dependencies/download-dependencies.bat server-release/dependencies/
+          cd server-release
+          zip -r ../chunked-upload-server.zip .
+        shell: bash
+
       - name: Delete existing release for tag
         run: |
           gh release delete ${{ github.ref_name }} --cleanup-tags --yes || echo "No existing release to delete"

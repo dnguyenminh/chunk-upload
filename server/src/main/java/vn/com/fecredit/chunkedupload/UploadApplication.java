@@ -19,7 +19,13 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * chunked upload RESTful service.
  * </p>
  */
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+
 @SpringBootApplication
+@EntityScan("vn.com.fecredit.chunkedupload.model")
+@EnableJpaRepositories("vn.com.fecredit.chunkedupload.model")
 public class UploadApplication {
     /**
      * The main method which serves as the entry point for the Java application.
@@ -29,5 +35,9 @@ public class UploadApplication {
      */
     public static void main(String[] args) {
         SpringApplication.run(UploadApplication.class, args);
+        // DEBUG: Print all beans of type TenantAccountRepository at startup
+        org.springframework.context.ApplicationContext ctx = org.springframework.boot.SpringApplication.run(UploadApplication.class, args);
+        String[] beanNames = ctx.getBeanNamesForType(vn.com.fecredit.chunkedupload.model.TenantAccountRepository.class);
+        System.out.println("[DEBUG] TenantAccountRepository beans: " + java.util.Arrays.toString(beanNames));
     }
 }

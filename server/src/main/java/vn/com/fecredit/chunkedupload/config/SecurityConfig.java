@@ -1,16 +1,17 @@
 package vn.com.fecredit.chunkedupload.config;
 
+import static org.springframework.security.config.Customizer.withDefaults;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
-import static org.springframework.security.config.Customizer.withDefaults;
+import vn.com.fecredit.chunkedupload.model.TenantAccountRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * Security configuration for the chunked upload service.
@@ -25,6 +26,7 @@ public class SecurityConfig {
 
     /**
      * Configures the security filter chain for HTTP Basic authentication.
+     *
      * @param http The HttpSecurity object to configure.
      * @return The configured SecurityFilterChain.
      * @throws Exception If an error occurs during configuration.
@@ -36,22 +38,51 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         .anyRequest().authenticated()
                 )
-                .httpBasic(withDefaults());
+                .httpBasic(withDefaults())
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(customAuthenticationEntryPoint())
+                );
         return http.build();
+    }
+
+    @Bean
+    public org.springframework.security.web.AuthenticationEntryPoint customAuthenticationEntryPoint() {
+        return (request, response, authException) -> {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            String message = "{\"error\":\"Unauthorized: " + authException.getMessage() + "\"}";
+            response.getWriter().write(message);
+        };
     }
 
     /**
      * Provides an in-memory user details service for authentication.
+     *
      * @return The UserDetailsService containing a default user.
      */
     @Bean
-    public UserDetailsService userDetailsService() {
-    @SuppressWarnings("deprecation")
-        UserDetails user = User.withDefaultPasswordEncoder()
-                .username("user")
-                .password("password")
-                .roles("USER")
-                .build();
-        return new InMemoryUserDetailsManager(user);
+    public UserDetailsService userDetailsService(TenantAccountRepository tenantAccountRepository) {
+        return username -> {
+            System.out.println("[DEBUG] Attempting to load user: " + username);
+            return tenantAccountRepository.findByUsername(username)
+                    .map(account -> {
+                        System.out.println("[DEBUG] Loaded user: " + account.getUsername() + ", password hash: " + account.getPassword());
+                        return org.springframework.security.core.userdetails.User
+                                .withUsername(account.getUsername())
+                                .password(account.getPassword())
+                                .roles("USER")
+                                .build();
+                    })
+                    .orElseThrow(() -> new org.springframework.security.core.userdetails.UsernameNotFoundException("User not found: " + username));
+        };
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        java.util.Map<String, org.springframework.security.crypto.password.PasswordEncoder> encoders = new java.util.HashMap<>();
+        encoders.put("bcrypt", new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder());
+        org.springframework.security.crypto.password.PasswordEncoder delegating = new org.springframework.security.crypto.password.DelegatingPasswordEncoder("bcrypt", encoders);
+        System.out.println("[DEBUG] Using DelegatingPasswordEncoder: " + delegating.getClass().getSimpleName());
+        return delegating;
     }
 }

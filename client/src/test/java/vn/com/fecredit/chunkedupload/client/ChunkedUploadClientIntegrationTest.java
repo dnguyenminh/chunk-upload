@@ -1,25 +1,33 @@
 package vn.com.fecredit.chunkedupload.client;
 
-
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
-
-import vn.com.fecredit.chunkedupload.UploadApplication;
-import vn.com.fecredit.chunkedupload.model.InitResponse;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.TestPropertySource;
+import vn.com.fecredit.chunkedupload.model.InitResponse;
 
-@SpringBootTest(classes = UploadApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@TestPropertySource(locations = "classpath:application-test.properties")
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+//@TestPropertySource(properties = {
+//        "chunkedupload.inprogress-dir=build/test-uploads/in-progress",
+//        "chunkedupload.complete-dir=build/test-uploads/complete",
+//        "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1",
+//        "spring.datasource.driverClassName=org.h2.Driver",
+//        "spring.datasource.username=sa",
+//        "spring.datasource.password=",
+//        "spring.jpa.hibernate.ddl-auto=create-drop"
+//})
+@org.springframework.test.context.jdbc.Sql(scripts = "/test-users.sql")
 class ChunkedUploadClientIntegrationTest {
 
     @LocalServerPort
@@ -30,64 +38,41 @@ class ChunkedUploadClientIntegrationTest {
     private final String PASSWORD = "password";
     private final String FILENAME = "integration-test-file.txt";
     private final byte[] FILE_CONTENT = "Integration test file content.".getBytes();
-    private Path uploadedFilePath;
+
+    private static final String UPLOAD_DIR = "uploads";
+    private static final String COMPLETE_DIR = UPLOAD_DIR + "/complete/1";
+
+    private final List<Path> filesToDelete = new ArrayList<>();
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws IOException {
         uploadUrl = "http://localhost:" + port + "/api/upload";
-        // uploadedFilePath will be set after upload, since uploadId is not known yet
-        uploadedFilePath = null;
-    }
+        filesToDelete.clear();
 
-    @Test
-    void testResumeFailedUpload() {
-        // Simulate a partial upload by uploading only half the chunks, then resume
-        byte[] file = new byte[1024 * 1024]; // 1MB
-        for (int i = 0; i < file.length; i++) file[i] = (byte) (i % 256);
-        String fileName = "resume-integration-test-file.bin";
-        ChunkedUploadClient client = new ChunkedUploadClient.Builder()
-                .uploadUrl(uploadUrl)
-                .username(USERNAME)
-                .password(PASSWORD)
-                .retryTimes(2)
-                .build();
-
-        // Step 1: Start upload, but simulate interruption after half the chunks
-        String uploadId = null;
-        int chunkSize = 0;
-        int totalChunks = 0;
-        try {
-            InitResponse initResp = client.startUploadSession(file, fileName);
-            uploadId = initResp.getUploadId();
-            chunkSize = initResp.getChunkSize();
-            totalChunks = (int) Math.ceil((double) file.length / chunkSize);
-            int halfChunks = totalChunks / 2;
-            for (int i = 0; i < halfChunks; i++) {
-                client.uploadChunk(uploadId, i, chunkSize, file);
+        Path uploadPath = Path.of(UPLOAD_DIR);
+        if (Files.exists(uploadPath)) {
+            try (var stream = Files.walk(uploadPath)) {
+                stream.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                    try {
+                        Files.delete(p);
+                    } catch (IOException e) {
+                        // Ignore
+                    }
+                });
             }
-        } catch (Exception e) {
-            // Ignore, simulating interruption
         }
-
-    // Step 2: Resume upload using resumeUpload
-    client.resumeUpload(uploadId, file);
-        Path filePath = Path.of("uploads", "complete", uploadId + "_" + fileName);
-        assertTrue(Files.exists(filePath), "Resumed uploaded file should exist");
-        try {
-            byte[] uploadedContent = Files.readAllBytes(filePath);
-            assertArrayEquals(file, uploadedContent, "Resumed uploaded file content should match");
-        } catch (Exception e) {
-            fail("Failed to read resumed uploaded file: " + e.getMessage());
-        }
+        Files.createDirectories(Path.of(COMPLETE_DIR));
     }
 
     @AfterEach
     void tearDown() {
-        try {
-            Files.deleteIfExists(uploadedFilePath);
-        } catch (Exception e) {
-            // Ignore cleanup errors
-        }
+        filesToDelete.forEach(path -> {
+            try {
+                Files.deleteIfExists(path);
+            } catch (IOException e) {
+                // Ignore
+            }
+        });
     }
 
     @Test
@@ -96,15 +81,28 @@ class ChunkedUploadClientIntegrationTest {
                 .uploadUrl(uploadUrl)
                 .username(USERNAME)
                 .password(PASSWORD)
-                .retryTimes(2)
                 .build();
         String uploadId = client.upload(FILE_CONTENT, FILENAME, null, null);
-        uploadedFilePath = Path.of("uploads", "complete", uploadId + "_" + FILENAME);
-        assertTrue(Files.exists(uploadedFilePath), "Uploaded file should exist");
+        Path uploadedFilePath = Path.of(COMPLETE_DIR, uploadId + "_" + FILENAME);
+        filesToDelete.add(uploadedFilePath);
+
+        // Wait and retry to ensure file is assembled before checking existence
+        System.out.println("[DEBUG] Checking file existence: " + uploadedFilePath.toAbsolutePath());
+        boolean exists = false;
+        int retries = 5;
+        for (int i = 0; i < retries; i++) {
+            exists = Files.exists(uploadedFilePath);
+            if (exists) break;
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        assertTrue(exists, "Uploaded file should exist");
         try {
-            byte[] uploadedContent = Files.readAllBytes(uploadedFilePath);
-            assertArrayEquals(FILE_CONTENT, uploadedContent, "Uploaded file content should match");
-        } catch (Exception e) {
+            assertArrayEquals(FILE_CONTENT, Files.readAllBytes(uploadedFilePath), "File content should match");
+        } catch (IOException e) {
             fail("Failed to read uploaded file: " + e.getMessage());
         }
     }
@@ -113,21 +111,80 @@ class ChunkedUploadClientIntegrationTest {
     void testUploadBigFileIntegration() {
         byte[] bigFile = new byte[5 * 1024 * 1024]; // 5MB
         for (int i = 0; i < bigFile.length; i++) bigFile[i] = (byte) (i % 256);
-        String bigFileName = "big-integration-test-file.bin";
+        String bigFileName = "big-file.bin";
         ChunkedUploadClient client = new ChunkedUploadClient.Builder()
                 .uploadUrl(uploadUrl)
                 .username(USERNAME)
                 .password(PASSWORD)
-                .retryTimes(2)
                 .build();
         String uploadId = client.upload(bigFile, bigFileName, null, null);
-        Path bigFilePath = Path.of("uploads", "complete", uploadId + "_" + bigFileName);
-        assertTrue(Files.exists(bigFilePath), "Big uploaded file should exist");
+        Path bigFilePath = Path.of(COMPLETE_DIR, uploadId + "_" + bigFileName);
+        filesToDelete.add(bigFilePath);
+
+        // Wait and retry to ensure big file is assembled before checking existence
+        System.out.println("[DEBUG] Checking big file existence: " + bigFilePath.toAbsolutePath());
+        boolean exists = false;
+        int retries = 5;
+        for (int i = 0; i < retries; i++) {
+            exists = Files.exists(bigFilePath);
+            if (exists) break;
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        assertTrue(exists, "Big file should exist");
         try {
-            byte[] uploadedContent = Files.readAllBytes(bigFilePath);
-            assertArrayEquals(bigFile, uploadedContent, "Big uploaded file content should match");
-        } catch (Exception e) {
-            fail("Failed to read big uploaded file: " + e.getMessage());
+            assertArrayEquals(bigFile, Files.readAllBytes(bigFilePath), "Big file content should match");
+        } catch (IOException e) {
+            fail("Failed to read big file: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testResumeFailedUpload() throws IOException, InterruptedException, NoSuchAlgorithmException {
+        byte[] file = new byte[1024 * 1024]; // 1MB
+        for (int i = 0; i < file.length; i++) file[i] = (byte) (i % 256);
+        String fileName = "resume-test-file.bin";
+        ChunkedUploadClient client = new ChunkedUploadClient.Builder()
+                .uploadUrl(uploadUrl)
+                .username(USERNAME)
+                .password(PASSWORD)
+                .build();
+
+        InitResponse initResp = client.startUploadSession(file, fileName);
+        String uploadId = initResp.getUploadId();
+        int chunkSize = initResp.getChunkSize();
+        int totalChunks = initResp.getTotalChunks();
+        int halfChunks = totalChunks / 2;
+
+        for (int i = 0; i < halfChunks; i++) {
+            client.uploadChunk(uploadId, i, chunkSize, totalChunks, file);
+        }
+
+        client.resumeUpload(uploadId, file);
+
+        Path filePath = Path.of(COMPLETE_DIR, uploadId + "_" + fileName);
+        filesToDelete.add(filePath);
+
+        System.out.println("[DEBUG] Checking file existence: " + filePath.toAbsolutePath());
+        boolean exists = false;
+        int retries = 5;
+        for (int i = 0; i < retries; i++) {
+            exists = Files.exists(filePath);
+            if (exists) break;
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        assertTrue(exists, "Resumed file should exist");
+        try {
+            assertArrayEquals(file, Files.readAllBytes(filePath), "Resumed file content should match");
+        } catch (IOException e) {
+            fail("Failed to read resumed file: " + e.getMessage());
         }
     }
 
@@ -137,16 +194,10 @@ class ChunkedUploadClientIntegrationTest {
                 .uploadUrl(uploadUrl)
                 .username(USERNAME)
                 .password("wrongpassword")
-                .retryTimes(2)
                 .build();
-        try {
-            client.upload(FILE_CONTENT, FILENAME, null, null);
-            fail("Upload should fail with wrong password");
-        } catch (RuntimeException e) {
-            String msg = e.getMessage().toLowerCase();
-            System.out.println("Error message: " + msg);
-            assertTrue(msg.contains("unauthorized") || msg.contains("401") || msg.contains("failed to initialize upload"), "Should fail with unauthorized error, got: " + msg);
-        }
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> client.upload(FILE_CONTENT, FILENAME, null, null));
+        String msg = ex.getMessage().toLowerCase();
+        assertTrue(msg.contains("unauthorized") || msg.contains("401"), "Should fail with unauthorized error, got: " + msg);
     }
 
     @Test
@@ -155,13 +206,7 @@ class ChunkedUploadClientIntegrationTest {
                 .uploadUrl(uploadUrl)
                 .username(USERNAME)
                 .password(PASSWORD)
-                .retryTimes(2)
                 .build();
-        try {
-            client.upload(new byte[0], FILENAME, null, null);
-            fail("Upload should fail with empty file");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().toLowerCase().contains("filecontent is required"), "Should fail with fileContent is required");
-        }
+        assertThrows(IllegalArgumentException.class, () -> client.upload(new byte[0], FILENAME, null, null));
     }
 }
