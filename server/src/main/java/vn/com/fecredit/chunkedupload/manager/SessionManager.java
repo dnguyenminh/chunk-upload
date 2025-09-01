@@ -66,11 +66,11 @@ public class SessionManager {
         /**
          * The unique identifier for the upload session.
          */
-        public String uploadId;
+        public final String uploadId;
         /**
          * The total size of the file in bytes.
          */
-        public long fileSize;
+        public final long fileSize;
 
         /**
          * Constructs a new SessionStatus.

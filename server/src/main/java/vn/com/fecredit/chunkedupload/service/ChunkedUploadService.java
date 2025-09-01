@@ -121,15 +121,7 @@ public class ChunkedUploadService {
     }
 
     /**
-     * Constructs the path to the temporary partial file for an upload.
-     * @param uploadId The unique identifier for the upload.
-     * @return The {@link Path} to the partial file.
-     */
-    /**
      * Constructs the path to the temporary partial file for an upload, under the tenant account folder.
-     * @param tenantAccountId The tenant account ID.
-     * @param uploadId The unique identifier for the upload.
-     * @return The {@link Path} to the partial file.
      */
     private final vn.com.fecredit.chunkedupload.model.TenantAccountRepository tenantAccountRepository;
     private final java.util.concurrent.ConcurrentHashMap<String, Long> tenantIdCache = new java.util.concurrent.ConcurrentHashMap<>();
@@ -202,7 +194,10 @@ public class ChunkedUploadService {
                 header.putLong(fileSize);
                 header.put(new byte[bitsetBytes]); // Empty bitset
                 header.flip();
-                ch.write(header, 0);
+                int bytesWritten = ch.write(header, 0);
+                if (bytesWritten != headerSize) {
+                    System.out.println("[WARN] Not all header bytes written: expected=" + headerSize + ", actual=" + bytesWritten);
+                }
                 raf.setLength(headerSize + fileSize);
             } else {
                 // File exists, validate its header
@@ -243,10 +238,10 @@ public class ChunkedUploadService {
      * Represents the metadata header of a partial upload file.
      */
     public static class Header {
-        public int totalChunks;
-        public int chunkSize;
-        public long fileSize;
-        public byte[] bitset;
+        public final int totalChunks;
+        public final int chunkSize;
+        public final long fileSize;
+        public final byte[] bitset;
 
         public Header(int totalChunks, int chunkSize, long fileSize, byte[] bitset) {
             this.totalChunks = totalChunks;
@@ -265,19 +260,23 @@ public class ChunkedUploadService {
      * @throws IOException If an I/O error occurs.
      */
     public void writeChunk(Path partPath, int chunkNumber, int chunkSize, byte[] data) throws IOException {
-        int idx = chunkNumber;
         try (var raf = new java.io.RandomAccessFile(partPath.toFile(), "rw");
              var ch = raf.getChannel()) {
             var h = readHeader(ch);
             long headerSize = PART_FILE_HEADER_FIXED_SIZE + h.bitset.length;
-            long offset = headerSize + (long) idx * h.chunkSize;
+            // Use actual chunkSize for single-chunk uploads
+            long offset = headerSize + (long) chunkNumber * ((h.totalChunks == 1) ? data.length : h.chunkSize);
             ch.position(offset);
-            int bytesWritten = ch.write(java.nio.ByteBuffer.wrap(data, 0, data.length));
+            System.out.println("[DEBUG] writeChunk: chunkNumber=" + chunkNumber + ", data[0]=" + (data.length > 0 ? data[0] : "empty") + ", data.length=" + data.length);
+            int bytesWritten = ch.write(ByteBuffer.wrap(data, 0, data.length));
+            if (bytesWritten != data.length) {
+                System.out.println("[WARN] Not all bytes written for chunk " + chunkNumber + ": expected=" + data.length + ", actual=" + bytesWritten);
+            }
             long partFileSize = raf.length();
             System.out.println("[DEBUG] writeChunk: partPath=" + partPath +
                 ", chunkNumber=" + chunkNumber +
                 ", chunkSize=" + chunkSize +
-                ", data.length=" + (data != null ? data.length : "null") +
+                ", data.length=" + data.length +
                 ", offset=" + offset +
                 ", headerSize=" + headerSize +
                 ", originalFileSize=" + h.fileSize +
@@ -315,11 +314,13 @@ public class ChunkedUploadService {
                  ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
                  while (remaining > 0) {
                      buffer.clear();
-                     int bytesToRead = (int) Math.min(bufferSize, remaining);
                      int read = src.read(buffer, position);
                      if (read <= 0) break;
                      buffer.flip();
-                     dst.write(buffer);
+                     int bytesWritten = dst.write(buffer);
+                     if (bytesWritten != buffer.limit()) {
+                         System.out.println("[WARN] Not all bytes written to completed file: expected=" + buffer.limit() + ", actual=" + bytesWritten);
+                     }
                      position += read;
                      remaining -= read;
                      bytesCopied += read;

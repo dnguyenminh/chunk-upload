@@ -18,6 +18,17 @@ The project is configured as a multi-module Gradle build. The root `build.gradle
 
 This setup ensures a clean, maintainable, and consistent build process across the entire project.
 
+## Release Packaging & Artifacts
+
+Each release zip (client/server) is structured as follows:
+- `libs/chunked-upload-*.jar`
+- `dependencies/download-dependencies.bat`
+- `dependencies/download-dependencies.sh`
+- `run-*.bat`
+- `run-*.sh`
+
+Packaging is automated via `.github/workflows/build-and-release.yml`.
+
 ## Server Module Components
 
 - **`ChunkedUploadController`**: The entry point for all API requests. It handles HTTP requests for initializing, chunking, checking status, and aborting uploads. It delegates business logic to the service and manager layers.

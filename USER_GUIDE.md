@@ -11,6 +11,16 @@ This project provides a resumable, chunked file upload system in Java (Spring Bo
   - `chunkedupload.inprogress-dir`: Temporary storage for in-progress uploads (default: `uploads/in-progress`)
   - `chunkedupload.complete-dir`: Final assembled files (default: `uploads/complete`), named as `<uploadId>_<originalFilename>`
 
+### Release Artifacts Structure
+Each release zip contains:
+- `libs/chunked-upload-*.jar`
+- `dependencies/download-dependencies.bat`
+- `dependencies/download-dependencies.sh`
+- `run-*.bat`
+- `run-*.sh`
+
+See `.github/workflows/build-and-release.yml` for packaging details.
+
 ## API Endpoints
 
 ### 1. Initialize Upload
@@ -90,9 +100,11 @@ String uploadId = client.upload(fileBytes, "myfile.txt", null, null);
 ## Integration Test Example
 See `client/src/test/java/vn/com/fecredit/chunkedupload/client/ChunkedUploadClientIntegrationTest.java` for a full integration test. It verifies upload and file content:
 
+<!-- Example integration test (Java, for documentation only) -->
 ```java
 String uploadId = client.upload(FILE_CONTENT, FILENAME, null, null);
 Path uploadedFilePath = Path.of("uploads", "complete", uploadId + "_" + FILENAME);
+// The following assertions are for illustrative purposes only, not executable in Markdown:
 assertTrue(Files.exists(uploadedFilePath), "Uploaded file should exist");
 byte[] uploadedContent = Files.readAllBytes(uploadedFilePath);
 assertArrayEquals(FILE_CONTENT, uploadedContent, "Uploaded file content should match");

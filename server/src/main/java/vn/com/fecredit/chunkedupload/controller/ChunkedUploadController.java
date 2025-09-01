@@ -114,14 +114,12 @@ public class ChunkedUploadController {
 
     @PostMapping("/chunk")
     public ResponseEntity<?> uploadChunk(
-            @RequestParam("uploadId") String uploadId,
-            @RequestParam("chunkNumber") int chunkNumber,
-            @RequestParam("totalChunks") int totalChunks,
-            @RequestParam("fileSize") long fileSize,
-            // Removed filename from chunk upload parameters
-            // Remove tenantAccountId from request parameters
-            @RequestPart(value = "file", required = false) MultipartFile file
-            , Principal principal
+            @RequestParam(value = "uploadId") String uploadId,
+            @RequestParam(value = "chunkNumber") int chunkNumber,
+            @RequestParam(value = "totalChunks") int totalChunks,
+            @RequestParam(value = "fileSize") long fileSize,
+            @RequestPart(value = "file") MultipartFile file,
+            Principal principal
     ) throws IOException {
         // Use chunkSize from request parameter, not from service
         int chunkSize = uploadService.getDefaultChunkSize();
@@ -138,9 +136,7 @@ public class ChunkedUploadController {
         if (expectedLastChunkSize == 0) expectedLastChunkSize = chunkSize;
 
         // Accept single-chunk uploads where fileSize < chunkSize
-        if (totalChunks == 1 && actualChunkLength == fileSize) {
-            // valid single chunk
-        } else {
+        if (totalChunks > 1 || actualChunkLength != fileSize) {
             if (!isLastChunk && actualChunkLength != chunkSize) {
                 System.out.println("[DEBUG] Invalid chunk size: expected=" + chunkSize + ", actual=" + actualChunkLength);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid chunk size for chunk " + chunkNumber);
@@ -159,7 +155,7 @@ public class ChunkedUploadController {
             try {
                 // Extract tenantAccountId from authenticated user/session
                 String tenantAccountId = principal != null ? principal.getName() : "unknown";
-                validateChunkRequest(chunkNumber, totalChunks, chunkSize, fileSize, uploadId, tenantAccountId);
+                validateChunkRequest(chunkNumber, totalChunks, uploadId, tenantAccountId);
             } catch (IllegalArgumentException e) {
                 System.out.println("[DEBUG] Chunk validation failed: " + e.getMessage());
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chunk upload failed: " + e.getMessage());
@@ -173,6 +169,9 @@ public class ChunkedUploadController {
                     ", chunkSize=" + chunkSize +
                     ", file.length=" + (file != null ? file.getSize() : -1));
             try {
+                if (file == null) {
+                    throw new IllegalArgumentException("Multipart file must not be null");
+                }
                 uploadService.writeChunk(partPath, chunkNumber, chunkSize, file.getBytes());
             } catch (IllegalArgumentException e) {
                 System.out.println("[DEBUG] writeChunk validation failed: " + e.getMessage());
@@ -234,7 +233,7 @@ public class ChunkedUploadController {
         }
     }
 
-    private void validateChunkRequest(int chunkNumber, int totalChunks, int chunkSize, long fileSize, String uploadId, String tenantAccountId) throws IOException {
+    private void validateChunkRequest(int chunkNumber, int totalChunks, String uploadId, String tenantAccountId) throws IOException {
         if (chunkNumber < 0 || chunkNumber > totalChunks) {
             throw new IllegalArgumentException("Invalid chunk number: " + chunkNumber);
         }

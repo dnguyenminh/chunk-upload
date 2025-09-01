@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -33,15 +34,7 @@ public class SecurityConfig {
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(authz -> authz
-                        .anyRequest().authenticated()
-                )
-                .httpBasic(withDefaults())
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(customAuthenticationEntryPoint())
-                );
+        http.csrf(AbstractHttpConfigurer::disable).authorizeHttpRequests(authz -> authz.anyRequest().authenticated()).httpBasic(withDefaults()).exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint()));
         return http.build();
     }
 
@@ -64,16 +57,10 @@ public class SecurityConfig {
     public UserDetailsService userDetailsService(TenantAccountRepository tenantAccountRepository) {
         return username -> {
             System.out.println("[DEBUG] Attempting to load user: " + username);
-            return tenantAccountRepository.findByUsername(username)
-                    .map(account -> {
-                        System.out.println("[DEBUG] Loaded user: " + account.getUsername() + ", password hash: " + account.getPassword());
-                        return org.springframework.security.core.userdetails.User
-                                .withUsername(account.getUsername())
-                                .password(account.getPassword())
-                                .roles("USER")
-                                .build();
-                    })
-                    .orElseThrow(() -> new org.springframework.security.core.userdetails.UsernameNotFoundException("User not found: " + username));
+            return tenantAccountRepository.findByUsername(username).map(account -> {
+                System.out.println("[DEBUG] Loaded user: " + account.getUsername() + ", password hash: " + account.getPassword());
+                return org.springframework.security.core.userdetails.User.withUsername(account.getUsername()).password(account.getPassword()).roles("USER").build();
+            }).orElseThrow(() -> new org.springframework.security.core.userdetails.UsernameNotFoundException("User not found: " + username));
         };
     }
 

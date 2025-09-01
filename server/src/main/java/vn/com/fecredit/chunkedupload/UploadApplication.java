@@ -3,22 +3,6 @@ package vn.com.fecredit.chunkedupload;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-/**
- * Main application class for the chunked file upload service.
- * <p>
- * This class serves as the entry point for the Spring Boot application.
- * It enables auto-configuration and component scanning to bootstrap the
- * chunked upload RESTful service.
- * </p>
- */
-/**
- * Main application class for the chunked file upload service.
- * <p>
- * This class serves as the entry point for the Spring Boot application.
- * It enables auto-configuration and component scanning to bootstrap the
- * chunked upload RESTful service.
- * </p>
- */
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import org.springframework.boot.autoconfigure.domain.EntityScan;

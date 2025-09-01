@@ -23,6 +23,16 @@ Each module (`server`, `client`, `model`) has its own `build.gradle` file defini
     - `chunkedupload.inprogress-dir`: Temporary storage for in-progress uploads (default: `uploads/in-progress`)
     - `chunkedupload.complete-dir`: Final assembled files (default: `uploads/complete`), named as `<uploadId>_<originalFilename>`
 
+### Release Artifacts Structure
+Each release zip contains:
+- `libs/chunked-upload-*.jar`
+- `dependencies/download-dependencies.bat`
+- `dependencies/download-dependencies.sh`
+- `run-*.bat`
+- `run-*.sh`
+
+See `.github/workflows/build-and-release.yml` for packaging details.
+
 ## API Endpoints
 
 ### 1. `POST /api/upload/init`
@@ -88,16 +98,11 @@ sequenceDiagram
 
 ```mermaid
 classDiagram
-    subgraph server
-        direction LR
-        class ChunkedUploadController
-        class ChunkedUploadService
-        class SessionManager
-        class BitsetManager
-    end
-
-    subgraph client
-        direction LR
+    class ChunkedUploadController
+    class ChunkedUploadService
+    class SessionManager
+    class BitsetManager
+    class ChunkedUploadClient
         class ChunkedUploadClient
     end
 

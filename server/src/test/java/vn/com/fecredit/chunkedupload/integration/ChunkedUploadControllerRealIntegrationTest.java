@@ -1,17 +1,25 @@
 package vn.com.fecredit.chunkedupload.integration;
 
-import org.junit.jupiter.api.*;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.test.context.jdbc.Sql;
-import org.springframework.http.*;
-import org.springframework.web.client.RestTemplate;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.web.client.RestTemplate;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Sql(scripts = "/test-users.sql")
@@ -45,6 +53,7 @@ public class ChunkedUploadControllerRealIntegrationTest {
         ResponseEntity<String> response = restTemplate().postForEntity(url, entity, String.class);
         System.out.println("DEBUG: Response status=" + response.getStatusCode() + ", body=" + response.getBody());
         assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
         assertTrue(response.getBody().contains("uploadId"));
         String uploadId = response.getBody().replaceAll(".*\"uploadId\"\\s*:\\s*\"([^\"]+)\".*", "$1");
         assertFalse(uploadId.isEmpty());
@@ -76,7 +85,9 @@ public class ChunkedUploadControllerRealIntegrationTest {
         for (int i = 0; i < defaultChunkSize; i++) dummyChunk0[i] = (byte) ('A' + i % 26);
         org.springframework.core.io.ByteArrayResource fileResource0 = new org.springframework.core.io.ByteArrayResource(dummyChunk0) {
             @Override
-            public String getFilename() { return "chunk0.bin"; }
+            public String getFilename() {
+                return "chunk0.bin";
+            }
         };
         params0.add("file", fileResource0);
         HttpHeaders headers0 = authHeaders("user", "password");
@@ -93,13 +104,13 @@ public class ChunkedUploadControllerRealIntegrationTest {
         params1.add("chunkNumber", "1");
         params1.add("totalChunks", String.valueOf(totalChunks));
         params1.add("fileSize", String.valueOf(fileSize));
-        int lastChunkSize = fileSize - defaultChunkSize * (totalChunks - 1);
-        if (lastChunkSize <= 0) lastChunkSize = fileSize;
-        byte[] dummyChunk1 = new byte[lastChunkSize];
-        for (int i = 0; i < lastChunkSize; i++) dummyChunk1[i] = (byte) ('a' + i % 26);
+        byte[] dummyChunk1 = new byte[fileSize];
+        for (int i = 0; i < fileSize; i++) dummyChunk1[i] = (byte) ('a' + i % 26);
         org.springframework.core.io.ByteArrayResource fileResource1 = new org.springframework.core.io.ByteArrayResource(dummyChunk1) {
             @Override
-            public String getFilename() { return "chunk1.bin"; }
+            public String getFilename() {
+                return "chunk1.bin";
+            }
         };
         params1.add("file", fileResource1);
         HttpHeaders headers1 = authHeaders("user", "password");
@@ -110,9 +121,11 @@ public class ChunkedUploadControllerRealIntegrationTest {
 
         // Check file assembled (simulate expected path)
         Path completeDir = Paths.get("uploads/complete");
-        boolean found = Files.walk(completeDir)
-            .anyMatch(p -> p.getFileName().toString().contains(filename));
-        assertTrue(found, "Completed file should exist in complete folder");
+        boolean found;
+        try (java.util.stream.Stream<Path> stream = java.nio.file.Files.walk(completeDir)) {
+            found = stream.anyMatch(p -> p.getFileName().toString().contains(filename));
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(found, "Completed file should exist in complete folder");
     }
 
     @Test
@@ -136,7 +149,9 @@ public class ChunkedUploadControllerRealIntegrationTest {
         for (int i = 0; i < defaultChunkSize; i++) dummyChunk0[i] = (byte) ('A' + i % 26);
         org.springframework.core.io.ByteArrayResource fileResource0 = new org.springframework.core.io.ByteArrayResource(dummyChunk0) {
             @Override
-            public String getFilename() { return "chunk0.bin"; }
+            public String getFilename() {
+                return "chunk0.bin";
+            }
         };
         params0.add("file", fileResource0);
         HttpHeaders headers0 = authHeaders("user", "password");
@@ -160,14 +175,13 @@ public class ChunkedUploadControllerRealIntegrationTest {
         params1.add("chunkNumber", "1");
         params1.add("totalChunks", String.valueOf(totalChunks));
         params1.add("fileSize", String.valueOf(fileSize));
-        int lastChunkSize = fileSize - defaultChunkSize * (totalChunks - 1);
-        // Always send last chunk with size = fileSize - defaultChunkSize * (totalChunks - 1)
-        if (lastChunkSize <= 0) lastChunkSize = fileSize;
-        byte[] dummyChunk1 = new byte[lastChunkSize];
-        for (int i = 0; i < lastChunkSize; i++) dummyChunk1[i] = (byte) ('a' + i % 26);
+        byte[] dummyChunk1 = new byte[fileSize];
+        for (int i = 0; i < fileSize; i++) dummyChunk1[i] = (byte) ('a' + i % 26);
         org.springframework.core.io.ByteArrayResource fileResource1 = new org.springframework.core.io.ByteArrayResource(dummyChunk1) {
             @Override
-            public String getFilename() { return "chunk1.bin"; }
+            public String getFilename() {
+                return "chunk1.bin";
+            }
         };
         params1.add("file", fileResource1);
         HttpHeaders headers1 = authHeaders("user", "password");
@@ -212,7 +226,9 @@ public class ChunkedUploadControllerRealIntegrationTest {
         for (int i = 0; i < 5; i++) dummyChunk1[i] = (byte) ('A' + i % 26);
         org.springframework.core.io.ByteArrayResource fileResource1 = new org.springframework.core.io.ByteArrayResource(dummyChunk1) {
             @Override
-            public String getFilename() { return "chunk1.bin"; }
+            public String getFilename() {
+                return "chunk1.bin";
+            }
         };
         params1.add("file", fileResource1);
         HttpHeaders headers1 = authHeaders("user1", "password1");
@@ -232,7 +248,9 @@ public class ChunkedUploadControllerRealIntegrationTest {
         for (int i = 0; i < 5; i++) dummyChunk2[i] = (byte) ('a' + i % 26);
         org.springframework.core.io.ByteArrayResource fileResource2 = new org.springframework.core.io.ByteArrayResource(dummyChunk2) {
             @Override
-            public String getFilename() { return "chunk2.bin"; }
+            public String getFilename() {
+                return "chunk2.bin";
+            }
         };
         params2.add("file", fileResource2);
         HttpHeaders headers2 = authHeaders("user2", "password2");
@@ -242,11 +260,13 @@ public class ChunkedUploadControllerRealIntegrationTest {
 
         // Check files are isolated (simulate expected path)
         Path completeDir = Paths.get("uploads/complete");
-        boolean found1 = Files.walk(completeDir)
-            .anyMatch(p -> p.getFileName().toString().contains("tenant1.txt"));
-        boolean found2 = Files.walk(completeDir)
-            .anyMatch(p -> p.getFileName().toString().contains("tenant2.txt"));
-        assertTrue(found1 && found2, "Both tenant files should exist and be isolated");
+        try (java.util.stream.Stream<Path> stream1 = java.nio.file.Files.walk(completeDir)) {
+            boolean found1 = stream1.anyMatch(p -> p.getFileName().toString().contains("tenant1.txt"));
+            try (java.util.stream.Stream<Path> stream2 = java.nio.file.Files.walk(completeDir)) {
+                boolean found2 = stream2.anyMatch(p -> p.getFileName().toString().contains("tenant2.txt"));
+                org.junit.jupiter.api.Assertions.assertTrue(found1 && found2, "Both tenant files should exist and be isolated");
+            }
+        }
     }
 
     @Test
@@ -260,7 +280,7 @@ public class ChunkedUploadControllerRealIntegrationTest {
         multipartErr.add("chunkNumber", "-1");
         multipartErr.add("totalChunks", "1");
         multipartErr.add("fileSize", "5");
-        multipartErr.add("file", new org.springframework.core.io.ByteArrayResource(new byte[] {1,2,3,4,5}) {
+        multipartErr.add("file", new org.springframework.core.io.ByteArrayResource(new byte[]{1, 2, 3, 4, 5}) {
             @Override
             public String getFilename() {
                 return "error.txt";
@@ -286,11 +306,11 @@ public class ChunkedUploadControllerRealIntegrationTest {
         badHeaders.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
         HttpEntity<org.springframework.util.MultiValueMap<String, Object>> badAuthEntity = new HttpEntity<>(multipartErr, badHeaders);
         try {
-            ResponseEntity<String> badAuthResp = restTemplate().postForEntity(chunkUrl, badAuthEntity, String.class);
+            restTemplate().postForEntity(chunkUrl, badAuthEntity, String.class);
             fail("Expected HttpClientErrorException$Unauthorized");
         } catch (org.springframework.web.client.HttpClientErrorException.Unauthorized ex) {
             System.out.println("DEBUG: Caught expected Unauthorized: " + ex.getMessage());
-            assertEquals(401, ex.getRawStatusCode());
+            assertEquals(401, ex.getStatusCode().value());
         }
     }
 }

@@ -38,6 +38,7 @@ public class ChunkedUploadImageTest {
                 .postForEntity(initUrl, initEntity, String.class);
         assertTrue(initResp.getStatusCode().is2xxSuccessful(), "Init API failed: " + initResp.getBody());
         String initJson = initResp.getBody();
+        assertNotNull(initJson);
         String uploadId = initJson.replaceAll(".*\"uploadId\"\\s*:\\s*\"([^\"]+)\".*", "$1");
         int chunkSize = Integer.parseInt(initJson.replaceAll(".*\"chunkSize\"\\s*:\\s*(\\d+).*", "$1"));
         int totalChunks = (int) Math.ceil((double) imageBytes.length / chunkSize);

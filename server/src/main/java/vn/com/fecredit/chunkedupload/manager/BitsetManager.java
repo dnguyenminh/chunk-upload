@@ -30,9 +30,8 @@ public class BitsetManager {
      */
     public boolean markChunkAndCheckComplete(Path partPath, int chunkNumber, int totalChunks) {
         byte[] bitset = bitsets.computeIfAbsent(partPath.toString(), k -> new byte[(totalChunks + 7) / 8]);
-        int idx = chunkNumber;
         // Set the bit for the received chunk
-        bitset[idx / 8] |= (byte) (1 << (idx % 8));
+        bitset[chunkNumber / 8] |= (byte) (1 << (chunkNumber % 8));
         // Check if all bits are set
         for (int i = 0; i < totalChunks; i++) {
             if ((bitset[i / 8] & (1 << (i % 8))) == 0) {
