@@ -15,6 +15,7 @@ The project is configured as a multi-module Gradle build. The root `build.gradle
 - **`io.spring.dependency-management`**: This plugin is applied to all subprojects to manage dependency versions centrally.
 - **Spring Boot BOM**: The `spring-boot-dependencies` BOM (Bill of Materials) is imported in the root project, ensuring that all modules use a consistent set of dependency versions that are known to work well together.
 - **Module-Specific Dependencies**: Each module (`server`, `client`, `model`) has its own `build.gradle` file where its specific dependencies are declared (e.g., `spring-boot-starter-web` for the server, `jackson-databind` for the client).
+- **Logging**: SLF4J logging is used throughout, with Logback as the backend. Logback configuration is in [`server/src/main/resources/logback.xml`](server/src/main/resources/logback.xml:1). Logback dependencies are managed by Spring Boot; do not declare explicit Logback versions in Gradle.
 
 This setup ensures a clean, maintainable, and consistent build process across the entire project.
 

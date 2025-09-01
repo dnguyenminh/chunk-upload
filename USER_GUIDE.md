@@ -11,6 +11,11 @@ This project provides a resumable, chunked file upload system in Java (Spring Bo
   - `chunkedupload.inprogress-dir`: Temporary storage for in-progress uploads (default: `uploads/in-progress`)
   - `chunkedupload.complete-dir`: Final assembled files (default: `uploads/complete`), named as `<uploadId>_<originalFilename>`
 
+## Logging
+- SLF4J logging is used throughout the project, with Logback as the backend.
+- Logback configuration is provided in [`server/src/main/resources/logback.xml`](server/src/main/resources/logback.xml:1).
+- Logback and SLF4J dependencies are managed by Spring Boot; do not declare explicit Logback versions in Gradle.
+
 ### Release Artifacts Structure
 Each release zip contains:
 - `libs/chunked-upload-*.jar`

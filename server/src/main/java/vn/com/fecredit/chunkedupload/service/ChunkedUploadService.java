@@ -1,16 +1,18 @@
 package vn.com.fecredit.chunkedupload.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.ConcurrentHashMap;
-import java.nio.ByteBuffer;
 
 /**
  * Service for handling low-level file operations for chunked uploads.
@@ -21,9 +23,12 @@ import java.nio.ByteBuffer;
  */
 @Service
 public class ChunkedUploadService {
+    private static final Logger log = LoggerFactory.getLogger(ChunkedUploadService.class);
     private static final int PART_FILE_HEADER_FIXED_SIZE = 20; // Magic(4) + totalChunks(4) + chunkSize(4) + fileSize(8)
+
     /**
      * Reads chunkSize from the header of the partial file.
+     *
      * @param partPath Path to the partial file.
      * @return The chunk size in bytes.
      * @throws IOException If an I/O error occurs.
@@ -38,6 +43,7 @@ public class ChunkedUploadService {
 
     /**
      * Reads totalChunks from the header of the partial file.
+     *
      * @param partPath Path to the partial file.
      * @return The total number of chunks.
      * @throws IOException If an I/O error occurs.
@@ -52,6 +58,7 @@ public class ChunkedUploadService {
 
     /**
      * Reads fileSize from the header of the partial file.
+     *
      * @param partPath Path to the partial file.
      * @return The file size in bytes.
      * @throws IOException If an I/O error occurs.
@@ -71,9 +78,10 @@ public class ChunkedUploadService {
 
     /**
      * Initializes the service by creating the necessary directories for in-progress and completed uploads.
+     *
      * @param inProgressDirPath Directory path for in-progress uploads.
-     * @param completeDirPath Directory path for completed uploads.
-     * @param defaultChunkSize Default chunk size in bytes.
+     * @param completeDirPath   Directory path for completed uploads.
+     * @param defaultChunkSize  Default chunk size in bytes.
      * @throws IOException If an I/O error occurs while creating the directories.
      */
     public ChunkedUploadService(
@@ -96,6 +104,7 @@ public class ChunkedUploadService {
 
     /**
      * Stores the original filename associated with an upload ID.
+     *
      * @param uploadId The unique identifier for the upload.
      * @param filename The original name of the file being uploaded.
      */
@@ -105,6 +114,7 @@ public class ChunkedUploadService {
 
     /**
      * Retrieves the original filename for a given upload ID.
+     *
      * @param uploadId The unique identifier for the upload.
      * @return The original filename, or {@code null} if no filename is associated with the ID.
      */
@@ -114,6 +124,7 @@ public class ChunkedUploadService {
 
     /**
      * Removes the stored filename for an upload session.
+     *
      * @param uploadId The unique identifier for the upload.
      */
     public void removeFilename(String uploadId) {
@@ -123,37 +134,39 @@ public class ChunkedUploadService {
     /**
      * Constructs the path to the temporary partial file for an upload, under the tenant account folder.
      */
+
     private final vn.com.fecredit.chunkedupload.model.TenantAccountRepository tenantAccountRepository;
     private final java.util.concurrent.ConcurrentHashMap<String, Long> tenantIdCache = new java.util.concurrent.ConcurrentHashMap<>();
-    
+
     /* Removed legacy constructor: all final fields are now always initialized via the main constructor */
-    
+
     public Path getPartPath(String tenantAccountId, String uploadId) {
         Long dbId = tenantIdCache.computeIfAbsent(tenantAccountId, username -> {
-            System.out.println("[DEBUG] Cache miss for tenantAccountId=" + username + ", querying DB...");
+            log.debug("Cache miss for tenantAccountId={}, querying DB...", username);
             return tenantAccountRepository.findByUsername(username)
-                .map(vn.com.fecredit.chunkedupload.model.TenantAccount::getId)
-                .orElseThrow(() -> new IllegalArgumentException("Tenant not found for username: " + username));
+                    .map(vn.com.fecredit.chunkedupload.model.TenantAccount::getId)
+                    .orElseThrow(() -> new IllegalArgumentException("Tenant not found for username: " + username));
         });
-        System.out.println("[DEBUG] Using tenant DB id=" + dbId + " for username=" + tenantAccountId);
+        log.debug("Using tenant DB id={} for username={}", dbId, tenantAccountId);
         return inProgressDir.resolve(String.valueOf(dbId)).resolve(uploadId + ".part");
     }
 
     /**
      * Constructs the final destination path for a completed file.
+     *
      * @param uploadId The unique identifier for the upload.
      * @return The final {@link Path} for the completed file.
      */
     public Path getFinalPath(String tenantAccountId, String uploadId) {
         Long dbId = tenantIdCache.computeIfAbsent(tenantAccountId, username -> {
-            System.out.println("[DEBUG] Cache miss for tenantAccountId=" + username + ", querying DB for final path...");
+            log.debug("Cache miss for tenantAccountId={}, querying DB for final path...", username);
             return tenantAccountRepository.findByUsername(username)
-                .map(vn.com.fecredit.chunkedupload.model.TenantAccount::getId)
-                .orElseThrow(() -> new IllegalArgumentException("Tenant not found for username: " + username));
+                    .map(vn.com.fecredit.chunkedupload.model.TenantAccount::getId)
+                    .orElseThrow(() -> new IllegalArgumentException("Tenant not found for username: " + username));
         });
         String filename = getFilename(uploadId);
         Path finalPath = completeDir.resolve(String.valueOf(dbId)).resolve(uploadId + (StringUtils.hasText(filename) ? ("_" + filename) : ""));
-        System.out.println("[DEBUG] Final path for completed file: " + finalPath);
+        log.debug("Final path for completed file: {}", finalPath);
         return finalPath;
     }
 
@@ -167,11 +180,12 @@ public class ChunkedUploadService {
      * - File Size (8 bytes)
      * - Bitset (variable bytes)
      * </p>
-     * @param partPath The path to the partial file.
+     *
+     * @param partPath    The path to the partial file.
      * @param totalChunks The total number of chunks.
-     * @param chunkSize The size of each chunk in bytes.
-     * @param fileSize The total size of the original file.
-     * @throws IOException If an I/O error occurs.
+     * @param chunkSize   The size of each chunk in bytes.
+     * @param fileSize    The total size of the original file.
+     * @throws IOException           If an I/O error occurs.
      * @throws IllegalStateException If the file exists but its header parameters do not match.
      */
     public void createOrValidateHeader(Path partPath, int totalChunks, int chunkSize, long fileSize) throws IOException {
@@ -179,10 +193,10 @@ public class ChunkedUploadService {
         int headerSize = 4 + 4 + 4 + 8 + bitsetBytes;
         java.nio.file.Path parentDir = partPath.getParent();
         if (parentDir != null && !java.nio.file.Files.exists(parentDir)) {
-            System.out.println("[DEBUG] Creating parent directory for upload part: " + parentDir);
+            log.debug("Creating parent directory for upload part: {}", parentDir);
             java.nio.file.Files.createDirectories(parentDir);
         }
-        System.out.println("[DEBUG] Creating or validating upload part file: " + partPath);
+        log.debug("Creating or validating upload part file: {}", partPath);
         try (var raf = new java.io.RandomAccessFile(partPath.toFile(), "rw");
              var ch = raf.getChannel()) {
             if (ch.size() == 0) {
@@ -196,17 +210,15 @@ public class ChunkedUploadService {
                 header.flip();
                 int bytesWritten = ch.write(header, 0);
                 if (bytesWritten != headerSize) {
-                    System.out.println("[WARN] Not all header bytes written: expected=" + headerSize + ", actual=" + bytesWritten);
+                    log.warn("Not all header bytes written: expected={}, actual={}", headerSize, bytesWritten);
                 }
                 raf.setLength(headerSize + fileSize);
             } else {
                 // File exists, validate its header
                 var h = readHeader(ch);
                 if (h.totalChunks != totalChunks || h.chunkSize != chunkSize || h.fileSize != fileSize) {
-                    System.out.println("[ERROR] Existing upload file header mismatch: " +
-                        "header.totalChunks=" + h.totalChunks + ", expected=" + totalChunks +
-                        "; header.chunkSize=" + h.chunkSize + ", expected=" + chunkSize +
-                        "; header.fileSize=" + h.fileSize + ", expected=" + fileSize);
+                    log.error("Existing upload file header mismatch: header.totalChunks={}, expected={}; header.chunkSize={}, expected={}; header.fileSize={}, expected={}",
+                            h.totalChunks, totalChunks, h.chunkSize, chunkSize, h.fileSize, fileSize);
                     throw new IllegalStateException("Existing upload file has different parameters");
                 }
             }
@@ -215,6 +227,7 @@ public class ChunkedUploadService {
 
     /**
      * Reads the header from a partial file channel.
+     *
      * @param ch The {@link FileChannel} of the partial file.
      * @return A {@link Header} object containing the file's metadata.
      * @throws IOException If an I/O error occurs or the file magic number is incorrect.
@@ -253,10 +266,11 @@ public class ChunkedUploadService {
 
     /**
      * Writes a single data chunk to the correct position in the partial file.
-     * @param partPath The path to the partial file.
+     *
+     * @param partPath    The path to the partial file.
      * @param chunkNumber The 0-based index of the chunk to write.
-     * @param chunkSize The size of the chunk.
-     * @param data The byte array containing the chunk's data.
+     * @param chunkSize   The size of the chunk.
+     * @param data        The byte array containing the chunk's data.
      * @throws IOException If an I/O error occurs.
      */
     public void writeChunk(Path partPath, int chunkNumber, int chunkSize, byte[] data) throws IOException {
@@ -267,73 +281,66 @@ public class ChunkedUploadService {
             // Use actual chunkSize for single-chunk uploads
             long offset = headerSize + (long) chunkNumber * ((h.totalChunks == 1) ? data.length : h.chunkSize);
             ch.position(offset);
-            System.out.println("[DEBUG] writeChunk: chunkNumber=" + chunkNumber + ", data[0]=" + (data.length > 0 ? data[0] : "empty") + ", data.length=" + data.length);
+            log.debug("writeChunk: chunkNumber={}, data[0]={}, data.length={}", chunkNumber, (data.length > 0 ? data[0] : "empty"), data.length);
             int bytesWritten = ch.write(ByteBuffer.wrap(data, 0, data.length));
             if (bytesWritten != data.length) {
-                System.out.println("[WARN] Not all bytes written for chunk " + chunkNumber + ": expected=" + data.length + ", actual=" + bytesWritten);
+                log.warn("Not all bytes written for chunk {}: expected={}, actual={}", chunkNumber, data.length, bytesWritten);
             }
             long partFileSize = raf.length();
-            System.out.println("[DEBUG] writeChunk: partPath=" + partPath +
-                ", chunkNumber=" + chunkNumber +
-                ", chunkSize=" + chunkSize +
-                ", data.length=" + data.length +
-                ", offset=" + offset +
-                ", headerSize=" + headerSize +
-                ", originalFileSize=" + h.fileSize +
-                ", partFileSize=" + partFileSize +
-                " ==> partFileSize should equal originalFileSize + headerSize");
+            log.debug("writeChunk: partPath={}, chunkNumber={}, chunkSize={}, data.length={}, offset={}, headerSize={}, originalFileSize={}, partFileSize={} ==> partFileSize should equal originalFileSize + headerSize",
+                    partPath, chunkNumber, chunkSize, data.length, offset, headerSize, h.fileSize, partFileSize);
         } catch (Exception e) {
-            System.out.println("[ERROR] Exception in writeChunk: " + e.getClass().getName() + ": " + e.getMessage());
-            e.printStackTrace(System.out);
+            log.error("Exception in writeChunk: {}: {}", e.getClass().getName(), e.getMessage(), e);
             throw e;
         }
     }
 
     /**
      * Assembles the final file by copying the data portion from the partial file.
-     * @param partPath The path to the partial file.
+     *
+     * @param partPath  The path to the partial file.
      * @param finalPath The destination path for the final, assembled file.
-     * @param fileSize The total size of the file.
-     * @param bitset The bitset indicating which chunks have been received.
+     * @param fileSize  The total size of the file.
+     * @param bitset    The bitset indicating which chunks have been received.
      * @throws IOException If an I/O error occurs during file transfer.
      */
     public void assembleFile(Path partPath, Path finalPath, long fileSize, byte[] bitset) throws IOException {
         long headerSize = 20 + bitset.length;
         Path parentDir = finalPath.getParent();
         if (parentDir != null && !Files.exists(parentDir)) {
-            System.out.println("[DEBUG] Creating parent directory for completed file: " + parentDir);
+            log.debug("Creating parent directory for completed file: {}", parentDir);
             Files.createDirectories(parentDir);
         }
-        System.out.println("[DEBUG] Assembling file: partPath=" + partPath + ", finalPath=" + finalPath);
+        log.debug("Assembling file: partPath={}, finalPath={}", partPath, finalPath);
         try (var src = FileChannel.open(partPath, java.nio.file.StandardOpenOption.READ);
              var dst = FileChannel.open(finalPath, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.WRITE, java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
-                 long bytesCopied = 0;
-                 long position = headerSize;
-                 long remaining = fileSize;
-                 int bufferSize = 8192;
-                 ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
-                 while (remaining > 0) {
-                     buffer.clear();
-                     int read = src.read(buffer, position);
-                     if (read <= 0) break;
-                     buffer.flip();
-                     int bytesWritten = dst.write(buffer);
-                     if (bytesWritten != buffer.limit()) {
-                         System.out.println("[WARN] Not all bytes written to completed file: expected=" + buffer.limit() + ", actual=" + bytesWritten);
-                     }
-                     position += read;
-                     remaining -= read;
-                     bytesCopied += read;
-                 }
-                 System.out.println("[DEBUG] Bytes copied to completed file: " + bytesCopied + ", expected: " + fileSize);
-                 System.out.println("[DEBUG] Completed file exists: " + Files.exists(finalPath) + ", size: " + Files.size(finalPath));
-             }
+            long bytesCopied = 0;
+            long position = headerSize;
+            long remaining = fileSize;
+            int bufferSize = 8192;
+            ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
+            while (remaining > 0) {
+                buffer.clear();
+                int read = src.read(buffer, position);
+                if (read <= 0) break;
+                buffer.flip();
+                int bytesWritten = dst.write(buffer);
+                if (bytesWritten != buffer.limit()) {
+                    log.warn("Not all bytes written to completed file: expected={}, actual={}", buffer.limit(), bytesWritten);
+                }
+                position += read;
+                remaining -= read;
+                bytesCopied += read;
+            }
+            log.debug("Bytes copied to completed file: {}, expected: {}", bytesCopied, fileSize);
+            log.debug("Completed file exists: {}, size: {}", Files.exists(finalPath), Files.size(finalPath));
+        }
         // Delete part file after successful assembly
         try {
             Files.deleteIfExists(partPath);
-            System.out.println("[DEBUG] Deleted part file after assembly: " + partPath);
+            log.debug("Deleted part file after assembly: {}", partPath);
         } catch (IOException e) {
-            System.out.println("[ERROR] Failed to delete part file: " + partPath + " - " + e.getMessage());
+            log.error("Failed to delete part file: {} - {}", partPath, e.getMessage());
         }
     }
 }

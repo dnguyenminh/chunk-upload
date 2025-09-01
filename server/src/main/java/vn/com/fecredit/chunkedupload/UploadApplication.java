@@ -2,15 +2,17 @@ package vn.com.fecredit.chunkedupload;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @SpringBootApplication
 @EntityScan("vn.com.fecredit.chunkedupload.model")
 @EnableJpaRepositories("vn.com.fecredit.chunkedupload.model")
 public class UploadApplication {
+    private static final Logger log = LoggerFactory.getLogger(UploadApplication.class);
+
     /**
      * The main method which serves as the entry point for the Java application.
      * It delegates to Spring Boot's {@link SpringApplication} to run the application.
@@ -22,6 +24,6 @@ public class UploadApplication {
         // DEBUG: Print all beans of type TenantAccountRepository at startup
         org.springframework.context.ApplicationContext ctx = org.springframework.boot.SpringApplication.run(UploadApplication.class, args);
         String[] beanNames = ctx.getBeanNamesForType(vn.com.fecredit.chunkedupload.model.TenantAccountRepository.class);
-        System.out.println("[DEBUG] TenantAccountRepository beans: " + java.util.Arrays.toString(beanNames));
+        log.debug("[DEBUG] TenantAccountRepository beans: {}", java.util.Arrays.toString(beanNames));
     }
 }

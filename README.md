@@ -16,6 +16,11 @@ This project implements a resumable file upload service in Java (Spring Boot). T
 ## Gradle Project Structure
 The project uses a multi-module Gradle setup. The root `build.gradle` file configures shared settings for the subprojects: `server`, `client`, and `model`. Dependency versions are managed centrally using the `io.spring.dependency-management` plugin and the Spring Boot BOM, ensuring consistency across all modules.
 
+**Logging:**
+SLF4J logging is used throughout the project, with Logback as the backend.
+Logback configuration is provided in [`server/src/main/resources/logback.xml`](server/src/main/resources/logback.xml:1).
+Logback and SLF4J dependencies are managed by Spring Boot; do not declare explicit Logback versions in Gradle.
+
 Each module (`server`, `client`, `model`) has its own `build.gradle` file defining its specific dependencies.
 
 ## Directory Structure

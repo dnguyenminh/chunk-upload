@@ -19,10 +19,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/upload")
 public class ChunkedUploadController {
+    private static final Logger log = LoggerFactory.getLogger(ChunkedUploadController.class);
 
     @Autowired
     private ChunkedUploadService uploadService;
@@ -40,17 +43,17 @@ public class ChunkedUploadController {
 
     @PostMapping("/init")
     public ResponseEntity<?> initUpload(@RequestBody InitRequest req, Principal principal) throws IOException {
-        System.out.println("[DEBUG] Received InitRequest: filename=" + req.getFilename() + ", fileSize=" + req.getFileSize() + ", uploadId=" + req.getUploadId());
+        log.debug("Received InitRequest: filename={}, fileSize={}, uploadId={}", req.getFilename(), req.getFileSize(), req.getUploadId());
         try {
             if (StringUtils.hasText(req.getUploadId())) {
                 return ResponseEntity.ok(resumeUpload(req, principal));
             }
             return ResponseEntity.ok(newUpload(req, principal));
         } catch (IllegalArgumentException e) {
-            System.out.println("[DEBUG] Init validation failed: " + e.getMessage());
+            log.debug("Init validation failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
-            System.out.println("[DEBUG] Upload initialization failed: " + e.getMessage());
+            log.debug("Upload initialization failed: {}", e.getMessage());
             throw e;
         }
     }
@@ -63,7 +66,7 @@ public class ChunkedUploadController {
 
         // Explicitly validate chunkSize in request
         if (req.getChunkSize() < 0) {
-            System.out.println("[DEBUG] Invalid chunkSize in request: " + req.getChunkSize());
+            log.debug("Invalid chunkSize in request: {}", req.getChunkSize());
             throw new IllegalArgumentException("chunkSize must be > 0");
         }
         if (chunkSize <= 0) {
@@ -124,7 +127,8 @@ public class ChunkedUploadController {
         // Use chunkSize from request parameter, not from service
         int chunkSize = uploadService.getDefaultChunkSize();
         String filename = uploadService.getFilename(uploadId);
-        System.out.println("[DEBUG] Received chunk upload: uploadId=" + uploadId + ", chunkNumber=" + chunkNumber + ", totalChunks=" + totalChunks + ", chunkSize=" + chunkSize + ", fileSize=" + fileSize + ", filename=" + filename + ", file=" + (file != null ? file.getOriginalFilename() : "null") + ", file.length=" + (file != null ? file.getSize() : -1));
+        log.debug("Received chunk upload: uploadId={}, chunkNumber={}, totalChunks={}, chunkSize={}, fileSize={}, filename={}, file={}, file.length={}",
+            uploadId, chunkNumber, totalChunks, chunkSize, fileSize, filename, (file != null ? file.getOriginalFilename() : "null"), (file != null ? file.getSize() : -1));
 
         // Use server-configured chunkSize for validation
 
@@ -138,18 +142,18 @@ public class ChunkedUploadController {
         // Accept single-chunk uploads where fileSize < chunkSize
         if (totalChunks > 1 || actualChunkLength != fileSize) {
             if (!isLastChunk && actualChunkLength != chunkSize) {
-                System.out.println("[DEBUG] Invalid chunk size: expected=" + chunkSize + ", actual=" + actualChunkLength);
+                log.debug("Invalid chunk size: expected={}, actual={}", chunkSize, actualChunkLength);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid chunk size for chunk " + chunkNumber);
             }
             if (isLastChunk && actualChunkLength != expectedLastChunkSize) {
-                System.out.println("[DEBUG] Invalid last chunk size: expected=" + expectedLastChunkSize + ", actual=" + actualChunkLength);
+                log.debug("Invalid last chunk size: expected={}, actual={}", expectedLastChunkSize, actualChunkLength);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid last chunk size");
             }
         }
 
         try {
             if (!sessionManager.isSessionActive(uploadId)) {
-                System.out.println("[DEBUG] Upload session is not active or has been aborted for uploadId=" + uploadId);
+                log.debug("Upload session is not active or has been aborted for uploadId={}", uploadId);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Upload session is not active or has been aborted.");
             }
             try {
@@ -157,28 +161,25 @@ public class ChunkedUploadController {
                 String tenantAccountId = principal != null ? principal.getName() : "unknown";
                 validateChunkRequest(chunkNumber, totalChunks, uploadId, tenantAccountId);
             } catch (IllegalArgumentException e) {
-                System.out.println("[DEBUG] Chunk validation failed: " + e.getMessage());
+                log.debug("Chunk validation failed: {}", e.getMessage());
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chunk upload failed: " + e.getMessage());
             }
 
             // Extract tenantAccountId from authenticated user/session
             String tenantAccountId = principal != null ? principal.getName() : "unknown";
             Path partPath = uploadService.getPartPath(tenantAccountId, uploadId);
-            System.out.println("[DEBUG] Calling writeChunk with: partPath=" + partPath +
-                    ", chunkNumber=" + (chunkNumber) +
-                    ", chunkSize=" + chunkSize +
-                    ", file.length=" + (file != null ? file.getSize() : -1));
+            log.debug("Calling writeChunk with: partPath={}, chunkNumber={}, chunkSize={}, file.length={}",
+                partPath, chunkNumber, chunkSize, (file != null ? file.getSize() : -1));
             try {
                 if (file == null) {
                     throw new IllegalArgumentException("Multipart file must not be null");
                 }
                 uploadService.writeChunk(partPath, chunkNumber, chunkSize, file.getBytes());
             } catch (IllegalArgumentException e) {
-                System.out.println("[DEBUG] writeChunk validation failed: " + e.getMessage());
+                log.debug("writeChunk validation failed: {}", e.getMessage());
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chunk upload failed: " + e.getMessage());
             } catch (Exception e) {
-                System.out.println("[ERROR] Exception during writeChunk: " + e.getClass().getName() + ": " + e.getMessage());
-                e.printStackTrace(System.out);
+                log.error("Exception during writeChunk: {}: {}", e.getClass().getName(), e.getMessage(), e);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Chunk upload failed: " + e.getMessage());
             }
             isLastChunk = bitsetManager.markChunkAndCheckComplete(partPath, chunkNumber, totalChunks);
@@ -189,13 +190,13 @@ public class ChunkedUploadController {
                 uploadService.assembleFile(partPath, finalPath, fileSize, bitsetManager.getBitset(partPath, totalChunks));
                 uploadService.removeFilename(uploadId);
                 sessionManager.endSession(uploadId);
-                System.out.println("[DEBUG] Upload completed for uploadId=" + uploadId);
+                log.debug("Upload completed for uploadId={}", uploadId);
             }
 
-            System.out.println("[DEBUG] Chunk upload successful for uploadId=" + uploadId + ", chunkNumber=" + chunkNumber);
+            log.debug("Chunk upload successful for uploadId={}, chunkNumber={}", uploadId, chunkNumber);
             return ResponseEntity.ok(Map.of("status", "ok", "uploadId", uploadId));
         } catch (Exception e) {
-            System.out.println("[DEBUG] Chunk upload failed: " + e.getMessage());
+            log.debug("Chunk upload failed: {}", e.getMessage());
             throw e;
         }
     }
@@ -225,7 +226,7 @@ public class ChunkedUploadController {
     private void validateNewUploadRequest(InitRequest req) {
         int chunkSize = uploadService.getDefaultChunkSize();
         if (chunkSize <= 0) {
-            System.out.println("[DEBUG] Invalid chunkSize: " + chunkSize);
+            log.debug("Invalid chunkSize: {}", chunkSize);
             throw new IllegalArgumentException("chunkSize must be > 0");
         }
         if (req.getFileSize() <= 0 || !StringUtils.hasText(req.getFilename())) {
