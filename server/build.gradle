@@ -19,6 +19,17 @@ repositories {
 // Force predictable artifact names that match run scripts
 bootJar {
     archiveFileName = 'server.jar'
+    // Do not include dependencies in the server.jar
+    mainClass = 'vn.com.fecredit.chunkedupload.UploadApplication'
+    layered()
+    requiresUnpack = []
+    excludeDevtools = true
+    // Remove all dependencies from the jar
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : null }
+    }
+    // Only include compiled classes and resources
+    with jar
 }
 jar {
     archiveFileName = 'server-plain.jar'
