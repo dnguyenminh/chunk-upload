@@ -5,10 +5,23 @@ plugins {
 apply plugin: 'application'
 // mainClassName is deprecated, use application { mainClass = ... }
 application {
-    mainClass = 'vn.com.fecredit.chunkedupload.util.BCryptGenTest'
+    // Main application entrypoint for the Spring Boot server
+    mainClass = 'vn.com.fecredit.chunkedupload.UploadApplication'
+}
+// Ensure Spring Boot plugin writes the correct main class into the jar manifest
+springBoot {
+    mainClass = 'vn.com.fecredit.chunkedupload.UploadApplication'
 }
 repositories {
     mavenCentral()
+}
+
+// Force predictable artifact names that match run scripts
+bootJar {
+    archiveFileName = 'server.jar'
+}
+jar {
+    archiveFileName = 'server-plain.jar'
 }
 
 dependencies {
