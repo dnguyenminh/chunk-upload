@@ -33,27 +33,27 @@ jobs:
       - name: Prepare client release zip
         run: |
           mkdir -p client-release/libs
-          mkdir -p client-release/dependencies
-          cp client/build/libs/client.jar client-release/libs/
-          cp client/run-client.sh client-release/
-          cp client/run-client.bat client-release/
-          sed "s/TAG=\"\${TAG:-v1.1.0}\"/TAG=\"${GITHUB_REF_NAME}\"/" client/dependencies/download-dependencies.sh > client-release/dependencies/download-dependencies.sh
-          sed "s/set TAG=%TAG%/set TAG=${GITHUB_REF_NAME}/" client/dependencies/download-dependencies.bat > client-release/dependencies/download-dependencies.bat
+          mkdir -p client-release/build
+          cp client/dependencies/download-dependencies.bat client-release/libs/
+          cp client/dependencies/download-dependencies.sh client-release/libs/
+          cp client/run-server.bat client-release/
+          cp client/run-server.sh client-release/
+          cp client/build/libs/client.jar client-release/build/
           cd client-release
-          zip -r ../chunked-upload-client.zip .
+          zip -r ../client.zip .
         shell: bash
 
       - name: Prepare server release zip
         run: |
           mkdir -p server-release/libs
-          mkdir -p server-release/dependencies
-          cp server/build/libs/server.jar server-release/libs/
-          cp server/run-server.sh server-release/
+          mkdir -p server-release/build
+          cp server/dependencies/download-dependencies.bat server-release/libs/
+          cp server/dependencies/download-dependencies.sh server-release/libs/
           cp server/run-server.bat server-release/
-          sed "s/TAG=\"\${TAG:-v1.1.0}\"/TAG=\"${GITHUB_REF_NAME}\"/" server/dependencies/download-dependencies.sh > server-release/dependencies/download-dependencies.sh
-          sed "s/set TAG=%TAG%/set TAG=${GITHUB_REF_NAME}/" server/dependencies/download-dependencies.bat > server-release/dependencies/download-dependencies.bat
+          cp server/run-server.sh server-release/
+          cp server/build/libs/server.jar server-release/build/
           cd server-release
-          zip -r ../chunked-upload-server.zip .
+          zip -r ../server.zip .
         shell: bash
 
       - name: Delete existing release for tag
