@@ -36,9 +36,9 @@ jobs:
           mkdir -p client-release/build
           cp client/dependencies/download-dependencies.bat client-release/libs/
           cp client/dependencies/download-dependencies.sh client-release/libs/
+          cp model/build/libs/model.jar client-release/libs/
           cp server/run-server.bat client-release/
           cp server/run-server.sh client-release/
-          cp model/build/libs/model.jar client-release/libs/
           cp client/build/libs/client.jar client-release/build/
           cd client-release
           zip -r ../client.zip .
@@ -53,7 +53,9 @@ jobs:
           cp model/build/libs/model.jar server-release/libs/
           cp server/run-server.bat server-release/
           cp server/run-server.sh server-release/
-          cp server/build/libs/server-plain.jar server-release/build/server.jar
+          cp server/build/libs/server.jar server-release/build/
+          cp server/src/main/resources/application.properties server-release/
+          cp server/src/main/resources/logback.xml server-release/
           cd server-release
           zip -r ../server.zip .
         shell: bash
