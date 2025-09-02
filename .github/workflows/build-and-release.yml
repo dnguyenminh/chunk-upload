@@ -47,7 +47,7 @@ jobs:
         run: |
           mkdir -p server-release/libs
           mkdir -p server-release/dependencies
-          cp server/build/libs/chunked-upload-server.jar server-release/libs/
+          cp server/build/libs/server.jar server-release/libs/
           cp server/run-server.sh server-release/
           cp server/run-server.bat server-release/
           sed "s/TAG=\"\${TAG:-v1.1.0}\"/TAG=\"${GITHUB_REF_NAME}\"/" server/dependencies/download-dependencies.sh > server-release/dependencies/download-dependencies.sh
@@ -88,7 +88,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ${{ steps.get_server_jar_path.outputs.path }}
-          asset_name: chunked-upload-server.jar
+          asset_name: server.jar
           asset_content_type: application/java-archive
 
       - name: Get Client JAR Path
