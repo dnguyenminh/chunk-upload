@@ -27,11 +27,14 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
+      - name: Build client JAR
+        run: ./gradlew :client:build
+
       - name: Prepare client release zip
         run: |
           mkdir -p client-release/libs
           mkdir -p client-release/dependencies
-          cp client/build/libs/chunked-upload-client.jar client-release/libs/
+          cp client/build/libs/client.jar client-release/libs/
           cp client/run-client.sh client-release/
           cp client/run-client.bat client-release/
           cp client/dependencies/download-dependencies.sh client-release/dependencies/
