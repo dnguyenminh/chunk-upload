@@ -36,8 +36,8 @@ jobs:
           mkdir -p client-release/build
           cp client/dependencies/download-dependencies.bat client-release/libs/
           cp client/dependencies/download-dependencies.sh client-release/libs/
-          cp client/run-server.bat client-release/
-          cp client/run-server.sh client-release/
+          cp server/run-server.bat client-release/
+          cp server/run-server.sh client-release/
           cp client/build/libs/client.jar client-release/build/
           cd client-release
           zip -r ../client.zip .
