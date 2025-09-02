@@ -53,7 +53,7 @@ jobs:
           cp model/build/libs/model.jar server-release/libs/
           cp server/run-server.bat server-release/
           cp server/run-server.sh server-release/
-          cp server/build/libs/server.jar server-release/build/
+          cp server/build/libs/server-plain.jar server-release/build/server.jar
           cd server-release
           zip -r ../server.zip .
         shell: bash
