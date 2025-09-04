@@ -7,16 +7,36 @@ import vn.com.fecredit.chunkedupload.model.TenantAccountRepository;
 
 @RestController
 @RequestMapping("/api/users")
+/**
+ * REST controller for user/tenant account management.
+ *
+ * <p>
+ * Provides endpoints for:
+ * <ul>
+ * <li>Listing tenant accounts</li>
+ * <li>User management operations</li>
+ * </ul>
+ * <p>
+ * This controller is primarily used for debugging and integration testing purposes.
+ */
 public class UserController {
 
     @Autowired
     private TenantAccountRepository tenantAccountRepository;
 
     /**
-     * Returns a list of tenant accounts. Intended for debugging and integration tests.
+     * Lists all tenant accounts in the system.
      *
-     * @param authentication the caller's authentication principal
-     * @return list of tenant accounts
+     * <p>
+     * This endpoint retrieves all registered tenant accounts and is primarily used for:
+     * <ul>
+     * <li>Debugging purposes</li>
+     * <li>Integration testing</li>
+     * <li>System administration</li>
+     * </ul>
+     *
+     * @param authentication The caller's authentication principal used for access control
+     * @return ResponseEntity containing a list of tenant accounts with HTTP 200 OK status
      */
     @GetMapping
     public ResponseEntity<?> listUsers(org.springframework.security.core.Authentication authentication) {

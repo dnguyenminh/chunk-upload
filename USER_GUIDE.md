@@ -14,138 +14,213 @@ This project provides a resumable, chunked file upload system in Java (Spring Bo
 ## Logging
 - SLF4J logging is used throughout the project, with Logback as the backend.
 - Logback configuration is provided in [`server/src/main/resources/logback.xml`](server/src/main/resources/logback.xml:1).
+- Logback now uses a rolling file appender with daily log rotation (`logs/server.%d{yyyy-MM-dd}.log`, 30 days history).
 - Logback and SLF4J dependencies are managed by Spring Boot; do not declare explicit Logback versions in Gradle.
 
 ### Release Artifacts Structure
-Each release zip contains:
-- `libs/chunked-upload-*.jar`
-- `dependencies/download-dependencies.bat`
-- `dependencies/download-dependencies.sh`
-- `run-*.bat`
-- `run-*.sh`
+
+**server.zip** contains:
+- libs/download-dependencies.bat
+- libs/download-dependencies.sh
+- libs/model.jar
+- run-server.bat
+- run-server.sh
+- build/libs/server.jar
+- create-user.bat
+- create-user.sh
+
+**client.zip** contains:
+- libs/download-dependencies.bat
+- libs/download-dependencies.sh
+- libs/model.jar
+- run-server.bat
+- run-server.sh
+- build/libs/client.jar
+
+**model.jar** is also published as a separate artifact.
 
 See `.github/workflows/build-and-release.yml` for packaging details.
 
-## API Endpoints
+## Usage Guide
 
-### 1. Initialize Upload
-**POST** `/api/upload/init`
+### Client Setup and Configuration
 
-**Request Body:**
-```json
-{
-  "totalChunks": 2,
-  "chunkSize": 10,
-  "fileSize": 20,
-  "filename": "myfile.txt"
-}
-```
-**Response:**
-```json
-{
-  "uploadId": "...",
-  "totalChunks": 2,
-  "chunkSize": 10,
-  "fileSize": 20,
-  "filename": "myfile.txt"
-}
-```
-
-### 2. Upload Chunk
-**POST** `/api/upload/chunk`
-
-**Form Data:**
-- `uploadId` (String)
-- `chunkNumber` (int, 1-based)
-- `totalChunks` (int)
-- `chunkSize` (int)
-- `fileSize` (long)
-- `file` (chunk data, binary)
-
-**Response:**
-- On last chunk, server assembles the file as `<uploadId>_<filename>` in `uploads/complete/`
-- Response includes `nextChunk` (null if completed) and `uploadId`
-
-### 3. Get Upload Status
-**GET** `/api/upload/{uploadId}/status`
-Returns upload status and chunk progress.
-
-### 4. Abort Upload
-**DELETE** `/api/upload/{uploadId}`
-Aborts and cleans up an in-progress upload.
-
----
-
-## Java Client Usage
-The `ChunkedUploadClient` is available in the `client` module.
-
-### Example
+1. **Basic Usage**
 ```java
-// Make sure the 'client' and 'model' modules are on the classpath
-import vn.com.fecredit.chunkedupload.client.ChunkedUploadClient;
-
-// ...
-
+// Create client with minimal configuration
 ChunkedUploadClient client = new ChunkedUploadClient.Builder()
-    .uploadUrl("http://localhost:8080/api/upload")
+    .uploadUrl("http://server/api/upload")
     .username("user")
-    .password("password")
-    .retryTimes(2)
-    .threadCounts(4)
+    .password("pass")
     .build();
 
-String uploadId = client.upload(fileBytes, "myfile.txt", null, null);
-// The final file will be saved as uploads/complete/{uploadId}_myfile.txt on the server
+// Upload a file
+String uploadId = client.upload(Paths.get("largefile.zip"), null, null);
 ```
-- The client automatically splits the file into chunks, uploads in parallel, and retries failed chunks.
-- The returned `uploadId` can be used to check status or locate the completed file on the server.
 
----
-
-## Integration Test Example
-See `client/src/test/java/vn/com/fecredit/chunkedupload/client/ChunkedUploadClientIntegrationTest.java` for a full integration test. It verifies upload and file content:
-
-<!-- Example integration test (Java, for documentation only) -->
+2. **Advanced Configuration**
 ```java
-String uploadId = client.upload(FILE_CONTENT, FILENAME, null, null);
-Path uploadedFilePath = Path.of("uploads", "complete", uploadId + "_" + FILENAME);
-// The following assertions are for illustrative purposes only, not executable in Markdown:
-assertTrue(Files.exists(uploadedFilePath), "Uploaded file should exist");
-byte[] uploadedContent = Files.readAllBytes(uploadedFilePath);
-assertArrayEquals(FILE_CONTENT, uploadedContent, "Uploaded file content should match");
+// Create client with performance tuning
+ChunkedUploadClient client = new ChunkedUploadClient.Builder()
+    .uploadUrl("http://server/api/upload")
+    .username("user")
+    .password("pass")
+    .retryTimes(5)              // More retries for unreliable networks
+    .threadCounts(8)            // More threads for high bandwidth
+    .httpClient(customClient)   // Custom HTTP client config
+    .transport(customTransport) // Custom transport layer
+    .build();
+
+// Upload with custom retry/thread settings
+client.upload(filePath, 3, 6);
 ```
 
----
-
-## Architecture Notes
-- The project is split into `server`, `client`, and `model` modules for a clean separation of concerns.
-- The Gradle build is structured as a multi-module project, with dependency versions managed by the Spring Boot BOM.
-- No database required; header files track chunk status.
-- Server assembles the file automatically when all chunks are received.
-- Resume support: client can retry missing chunks.
-
----
-
-## Build & Run
-
-```bash
-# Clean and build all modules
-./gradlew clean build
-
-# Run the server application
-./gradlew :server:bootRun
-
-# Run the client's integration tests
-./gradlew :client:test
+3. **Resume Handling**
+```java
+try {
+    client.upload(filePath, 3, 4);
+} catch (RuntimeException e) {
+    if (e.getMessage().contains("network error")) {
+        // Resume the upload
+        client.resumeUpload(brokenUploadId, filePath);
+    }
+}
 ```
 
----
+### API Reference
 
-## Troubleshooting
-- If the upload fails, check server logs for errors.
-- Ensure the client and server use matching authentication credentials.
-- The completed file will be named `{uploadId}_{originalFilename}` in the server's `uploads/complete/` directory.
+#### 1. Upload Initialization
+`POST /api/upload/init`
 
----
+Starts a new upload session.
 
-For more details, see `README.md` and `architecture.md`.
+**Request:**
+```json
+{
+  "filename": "myfile.txt",
+  "fileSize": 123456,
+  "checksum": "optional-sha256-hash"
+}
+```
+
+**Response:**
+```json
+{
+  "uploadId": "unique-session-id",
+  "totalChunks": 10,
+  "chunkSize": 1048576,
+  "fileSize": 123456,
+  "filename": "myfile.txt",
+  "checksum": "server-computed-hash",
+  "bitsetBytes": "base64-encoded-progress"
+}
+```
+
+**Status Codes:**
+- 200: Success
+- 400: Invalid request
+- 401: Unauthorized
+- 500: Server error
+
+#### 2. Chunk Upload
+`POST /api/upload/chunk`
+
+Uploads a single chunk using multipart/form-data.
+
+**Request Fields:**
+- uploadId (form field): Session identifier
+- chunkNumber (form field): Zero-based chunk index
+- file (form file): Binary chunk data
+
+**Response:**
+- 200: Chunk accepted
+- 400: Invalid chunk
+- 404: Session not found
+- 409: Chunk already uploaded
+
+#### 3. Status Check
+`GET /api/upload/status/{uploadId}`
+
+Retrieves current upload status.
+
+**Response:**
+```json
+{
+  "uploadId": "session-id",
+  "completedChunks": 5,
+  "totalChunks": 10,
+  "status": "IN_PROGRESS"
+}
+```
+
+### Performance Optimization
+
+1. **Thread Count Guidelines:**
+   - CPU-bound: threads = CPU cores
+   - Network-bound: threads = 2-4x cores
+   - Memory-bound: reduce thread count
+
+2. **Retry Strategy:**
+   - Network issues: 3-5 retries
+   - Server errors: 2-3 retries
+   - Client errors: no retry
+
+3. **Memory Management:**
+   - Monitor heap usage
+   - Adjust queue size
+   - Use file streaming
+
+### Error Handling
+
+1. **Network Errors:**
+   - Automatic retry with backoff
+   - Session resumption
+   - Connection pooling
+
+2. **Data Integrity:**
+   - Checksum validation
+   - Chunk verification
+   - Session state checks
+
+3. **Resource Cleanup:**
+   - Automatic thread shutdown
+   - Memory release
+   - File handle closure
+
+### Monitoring and Debugging
+
+1. **Log Analysis:**
+   - Check `logs/server.%d{yyyy-MM-dd}.log`
+   - Monitor error patterns
+   - Track performance metrics
+
+2. **Performance Metrics:**
+   - Upload throughput
+   - Chunk success rate
+   - Thread pool stats
+   - Memory usage
+
+3. **Debug Mode:**
+   - Enable verbose logging
+   - Track chunk progress
+   - Monitor thread states
+   - Validate checksums
+
+### Security Considerations
+
+1. **Authentication:**
+   - Basic auth required
+   - HTTPS recommended
+   - Token expiration
+
+2. **Data Protection:**
+   - Tenant isolation
+   - File validation
+   - Size limits
+   - Type checking
+
+3. **Resource Limits:**
+   - Max file size
+   - Chunk size bounds
+   - Session timeouts
+   - Thread limits

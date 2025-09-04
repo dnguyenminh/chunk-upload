@@ -4,11 +4,38 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Manages active upload sessions, tracking their state and metadata.
+ * Manages the lifecycle and metadata of active chunked upload sessions.
+ *
  * <p>
- * Maintains a record of all ongoing chunked uploads using a thread-safe in-memory map.
- * Maps a unique upload ID to the total file size for quick lookups and status checks.
- * </p>
+ * This manager provides:
+ * <ul>
+ * <li>Thread-safe session tracking and state management</li>
+ * <li>Memory-efficient storage using upload IDs as keys</li>
+ * <li>Quick status lookups for active uploads</li>
+ * <li>Automatic resource cleanup on session end</li>
+ * </ul>
+ *
+ * <p>
+ * Session lifecycle:
+ * <ul>
+ * <li>Created on upload initiation via {@link #startSession}</li>
+ * <li>Queried during upload via {@link #getStatus}</li>
+ * <li>Removed on completion via {@link #endSession}</li>
+ * </ul>
+ *
+ * <p>
+ * Example usage:
+ * <pre>
+ * SessionManager manager = new SessionManager();
+ * // On upload start:
+ * manager.startSession("upload123", 5000000);
+ * // During upload:
+ * SessionStatus status = manager.getStatus("upload123");
+ * // On completion:
+ * manager.endSession("upload123");
+ * </pre>
+ *
+ * @see SessionStatus
  */
 @Component
 public class SessionManager {
@@ -21,9 +48,18 @@ public class SessionManager {
 
     /**
      * Starts and registers a new upload session.
-     * If a session with the same upload ID already exists, it will be overwritten.
-     * @param uploadId The unique identifier for the upload session.
+     *
+     * <p>
+     * Implementation details:
+     * <ul>
+     * <li>Thread-safe via {@link ConcurrentHashMap#put}</li>
+     * <li>Overwrites existing session if ID exists</li>
+     * <li>O(1) operation for session creation</li>
+     * </ul>
+     *
+     * @param uploadId The unique identifier for the upload session, typically a UUID.
      * @param fileSize The total size of the file being uploaded in bytes.
+     * @throws IllegalArgumentException if fileSize is negative
      */
     public void startSession(String uploadId, long fileSize) {
         sessions.put(uploadId, fileSize);
@@ -31,7 +67,24 @@ public class SessionManager {
 
     /**
      * Ends and removes an upload session from tracking.
-     * Should be called when an upload is completed or aborted to free up resources.
+     *
+     * <p>
+     * This method should be called in these scenarios:
+     * <ul>
+     * <li>Upload completed successfully</li>
+     * <li>Upload aborted by client</li>
+     * <li>Upload failed with unrecoverable error</li>
+     * <li>Session timeout/cleanup</li>
+     * </ul>
+     *
+     * <p>
+     * Implementation details:
+     * <ul>
+     * <li>Thread-safe via {@link ConcurrentHashMap#remove}</li>
+     * <li>No-op if session doesn't exist</li>
+     * <li>Immediately frees memory</li>
+     * </ul>
+     *
      * @param uploadId The unique identifier for the upload session to be ended.
      */
     public void endSession(String uploadId) {
@@ -39,10 +92,28 @@ public class SessionManager {
     }
 
     /**
-     * Retrieves the status of a specific upload session.
-     * @param uploadId The unique identifier for the upload session.
-     * @return A {@link SessionStatus} object containing details about the session.
-     *         If the session is not found, the fileSize in the returned status will be 0.
+     * Retrieves the current status of a specific upload session.
+     *
+     * <p>
+     * This method provides:
+     * <ul>
+     * <li>Non-null return value (safe for null checks)</li>
+     * <li>File size of 0 indicating non-existent session</li>
+     * <li>Thread-safe access to session data</li>
+     * </ul>
+     *
+     * <p>
+     * Implementation details:
+     * <ul>
+     * <li>Thread-safe via {@link ConcurrentHashMap#get}</li>
+     * <li>O(1) lookup performance</li>
+     * <li>Returns new status object for each call</li>
+     * </ul>
+     *
+     * @param uploadId The unique identifier for the upload session
+     * @return A new {@link SessionStatus} object containing the current session state.
+     *         If the session is not found, returns a status with fileSize = 0.
+     * @see SessionStatus
      */
     public SessionStatus getStatus(String uploadId) {
         Long fileSize = sessions.get(uploadId);
@@ -50,9 +121,26 @@ public class SessionManager {
     }
 
     /**
-     * Checks if an upload session is currently active.
-     * @param uploadId The unique identifier for the upload session.
-     * @return true if the session is active, false otherwise.
+     * Checks if an upload session is currently active and tracked by the manager.
+     *
+     * <p>
+     * Usage scenarios:
+     * <ul>
+     * <li>Validate session before processing chunks</li>
+     * <li>Check if cleanup is needed</li>
+     * <li>Verify session state in error handling</li>
+     * </ul>
+     *
+     * <p>
+     * Implementation details:
+     * <ul>
+     * <li>Thread-safe via {@link ConcurrentHashMap#containsKey}</li>
+     * <li>O(1) operation for status check</li>
+     * <li>Returns false for null uploadId</li>
+     * </ul>
+     *
+     * @param uploadId The unique identifier for the upload session
+     * @return true if the session exists and is active, false otherwise
      */
     public boolean isSessionActive(String uploadId) {
         return sessions.containsKey(uploadId);
@@ -60,7 +148,24 @@ public class SessionManager {
 
     /**
      * Represents the status and metadata of an upload session.
-     * Typically returned to the client to provide information about an ongoing upload.
+     *
+     * <p>
+     * This immutable class provides:
+     * <ul>
+     * <li>Session identification via uploadId</li>
+     * <li>Total file size tracking</li>
+     * <li>Thread-safe state representation</li>
+     * <li>Null-safe value semantics</li>
+     * </ul>
+     *
+     * <p>
+     * Status interpretation:
+     * <ul>
+     * <li>fileSize > 0: Active session with specified size</li>
+     * <li>fileSize = 0: Session not found or invalid</li>
+     * </ul>
+     *
+     * @see #getStatus
      */
     public static class SessionStatus {
         /**

@@ -15,7 +15,7 @@ The project is configured as a multi-module Gradle build. The root `build.gradle
 - **`io.spring.dependency-management`**: This plugin is applied to all subprojects to manage dependency versions centrally.
 - **Spring Boot BOM**: The `spring-boot-dependencies` BOM (Bill of Materials) is imported in the root project, ensuring that all modules use a consistent set of dependency versions that are known to work well together.
 - **Module-Specific Dependencies**: Each module (`server`, `client`, `model`) has its own `build.gradle` file where its specific dependencies are declared (e.g., `spring-boot-starter-web` for the server, `jackson-databind` for the client).
-- **Logging**: SLF4J logging is used throughout, with Logback as the backend. Logback configuration is in [`server/src/main/resources/logback.xml`](server/src/main/resources/logback.xml:1). Logback dependencies are managed by Spring Boot; do not declare explicit Logback versions in Gradle.
+- **Logging**: SLF4J logging is used throughout, with Logback as the backend. Logback configuration is in [`server/src/main/resources/logback.xml`](server/src/main/resources/logback.xml:1). Logback now uses a rolling file appender with daily log rotation (`logs/server.%d{yyyy-MM-dd}.log`, 30 days history). Logback dependencies are managed by Spring Boot; do not declare explicit Logback versions in Gradle.
 
 This setup ensures a clean, maintainable, and consistent build process across the entire project.
 
@@ -34,8 +34,18 @@ Packaging is automated via `.github/workflows/build-and-release.yml`.
 
 - **`ChunkedUploadController`**: The entry point for all API requests. It handles HTTP requests for initializing, chunking, checking status, and aborting uploads. It delegates business logic to the service and manager layers.
 - **`ChunkedUploadService`**: Manages all low-level file system operations. Its responsibilities include creating temporary part files, writing a metadata header, writing individual chunks to the correct offset, and assembling the final file upon completion.
-- **`SessionManager`**: An in-memory component that tracks active upload sessions. It maps a unique `uploadId` to file metadata, allowing for quick status checks and session validation.
-- **`BitsetManager`**: An in-memory component that tracks the completion status of chunks for each upload. It uses a bitset (represented as a `byte[]`) to efficiently mark received chunks and determine when an upload is complete.
+- **`SessionManager`**: An in-memory component that tracks active upload sessions using a thread-safe `ConcurrentHashMap`. It provides:
+  - Fast O(1) lookups for session validation
+  - Automatic resource cleanup on session end
+  - Thread-safe state management
+  - Memory-efficient storage using upload IDs as keys
+
+- **`BitsetManager`**: A sophisticated chunk tracking system that uses bitsets for efficient state management:
+  - Uses 1 bit per chunk (8 chunks per byte) for memory efficiency
+  - Thread-safe operations via `ConcurrentHashMap`
+  - O(1) chunk marking and O(n/8) completion checking
+  - Automatic cleanup via weak references
+  - Supports concurrent uploads with atomic operations
 
 ## On-Disk Format (In-Progress Files)
 
@@ -52,7 +62,33 @@ When a chunk is received, it is written directly to its calculated offset in the
 
 ## Design Choices
 
-- **Stateless (No Database)**: The server's state is managed through in-memory components and the on-disk header files. This simplifies deployment and reduces external dependencies.
-- **Resumability**: If an upload is interrupted, the client can re-initialize the upload with the same `uploadId`. The server uses the header in the `.part` file to determine which chunks are missing and the upload can be resumed.
-- **Modularity**: The separation into `server`, `client`, and `model` modules promotes clean code, easier maintenance, and independent development of the client and server.
-- **Client-Side Parallelism**: The `ChunkedUploadClient` uses a thread pool to upload multiple chunks in parallel, significantly improving performance for large files over high-latency networks.
+- **Stateless Architecture**:
+  - In-memory state management via thread-safe components
+  - On-disk headers for persistence and recovery
+  - No database dependency for simplified deployment
+  - Automatic resource cleanup and memory management
+
+- **Resumability**:
+  - Chunk-level granularity for efficient resume
+  - Server-controlled chunk size for optimal performance
+  - Checksum validation for data integrity
+  - Bitset tracking for upload progress
+
+- **Modularity**:
+  - Clean separation of concerns across modules
+  - Independent versioning and deployment
+  - Shared DTOs in model module
+  - Consistent dependency management
+
+- **Client Performance**:
+  - Producer-consumer pattern for chunk processing
+  - Configurable thread pool for parallel uploads
+  - Bounded queue for backpressure management
+  - Automatic retry with exponential backoff
+  - Efficient resource cleanup on completion/failure
+
+- **Thread Safety**:
+  - Immutable data transfer objects
+  - Thread-safe managers using `ConcurrentHashMap`
+  - Atomic operations for state updates
+  - Clear ownership boundaries for shared resources

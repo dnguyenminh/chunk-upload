@@ -1,101 +1,52 @@
 package vn.com.fecredit.chunkedupload.model;
 
 /**
- * Represents the request to initialize a chunked upload.
+ * Request object for initializing or resuming a chunked upload.
+ *
+ * <p>
+ * Contains all necessary information to:
+ * <ul>
+ * <li>Start a new upload session</li>
+ * <li>Resume a broken upload</li>
+ * <li>Validate file integrity</li>
+ * </ul>
  */
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+
 public class InitRequest {
     /**
-     * The unique identifier for the upload. Can be null if a new upload is being started.
+     * ID of a previous broken upload to resume, if any.
+     * Optional - only used when resuming an interrupted upload.
      */
-    private String uploadId;
+    private String brokenUploadId;
+
     /**
-     * The total number of chunks the file will be split into.
+     * SHA-256 checksum of the complete file.
+     * Used for integrity validation during resume and completion.
      */
-    private int totalChunks;
+    @NotNull
+    private String checksum;
+
     /**
-     * The size of each chunk in bytes.
+     * Total size of the file in bytes.
+     * Must be greater than 0.
      */
-    private int chunkSize;
-    /**
-     * The total size of the file in bytes.
-     */
+    @Positive
     private long fileSize;
+
     /**
-     * The name of the file being uploaded.
+     * Original name of the file being uploaded.
+     * Required and must not be blank.
      */
+    @NotBlank
     private String filename;
 
-    /**
-     * The tenant account ID for multi-tenant support.
-     */
-    private String tenantAccountId;
-
-    /**
-     * Gets the tenant account ID.
-     * @return The tenant account ID.
-     */
-    public String getTenantAccountId() {
-        return tenantAccountId;
-    }
-
-    /**
-     * Sets the tenant account ID.
-     * @param tenantAccountId The tenant account ID to set.
-     */
-    public void setTenantAccountId(String tenantAccountId) {
-        this.tenantAccountId = tenantAccountId;
-    }
-
-    /**
-     * Gets the upload ID.
-     * @return The upload ID, or null if starting a new upload.
-     */
-    public String getUploadId() {
-        return uploadId;
-    }
-
-    /**
-     * Sets the upload ID.
-     * @param uploadId The upload ID to set.
-     */
-    public void setUploadId(String uploadId) {
-        this.uploadId = uploadId;
-    }
-
-    /**
-     * Gets the total number of chunks.
-     * @return The total number of chunks.
-     */
-    public int getTotalChunks() {
-        return totalChunks;
-    }
-
-    /**
-     * Sets the total number of chunks.
-     * @param totalChunks The total number of chunks.
-     */
-    public void setTotalChunks(int totalChunks) {
-        this.totalChunks = totalChunks;
-    }
-
-    /**
-     * Gets the chunk size in bytes.
-     * @return The chunk size in bytes.
-     */
-    public int getChunkSize() {
-        return chunkSize;
-    }
-
-    /**
-     * Sets the chunk size in bytes.
-     * @param chunkSize The chunk size in bytes.
-     */
-    public void setChunkSize(int chunkSize) {
-        this.chunkSize = chunkSize;
-    }
 
     /**
      * Gets the total file size in bytes.
+     *
      * @return The total file size in bytes.
      */
     public long getFileSize() {
@@ -104,6 +55,7 @@ public class InitRequest {
 
     /**
      * Sets the total file size in bytes.
+     *
      * @param fileSize The total file size in bytes.
      */
     public void setFileSize(long fileSize) {
@@ -112,6 +64,7 @@ public class InitRequest {
 
     /**
      * Gets the filename being uploaded.
+     *
      * @return The filename.
      */
     public String getFilename() {
@@ -120,9 +73,46 @@ public class InitRequest {
 
     /**
      * Sets the filename being uploaded.
+     *
      * @param filename The filename.
      */
     public void setFilename(String filename) {
         this.filename = filename;
+    }
+
+    /**
+     * Gets the ID of a previous broken upload to resume.
+     *
+     * @return The broken upload ID, or null if this is a new upload
+     */
+    public String getBrokenUploadId() {
+        return brokenUploadId;
+    }
+
+    /**
+     * Sets the ID of a previous broken upload to resume.
+     *
+     * @param brokenUploadId The broken upload ID to resume from
+     */
+    public void setBrokenUploadId(String brokenUploadId) {
+        this.brokenUploadId = brokenUploadId;
+    }
+
+    /**
+     * Gets the SHA-256 checksum of the complete file.
+     *
+     * @return The file's SHA-256 checksum
+     */
+    public String getChecksum() {
+        return checksum;
+    }
+
+    /**
+     * Sets the SHA-256 checksum of the complete file.
+     *
+     * @param checksum The file's SHA-256 checksum
+     */
+    public void setChecksum(String checksum) {
+        this.checksum = checksum;
     }
 }

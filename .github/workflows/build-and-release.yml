@@ -37,8 +37,8 @@ jobs:
           cp client/dependencies/download-dependencies.bat client-release/libs/
           cp client/dependencies/download-dependencies.sh client-release/libs/
           cp model/build/libs/model.jar client-release/libs/
-          cp server/run-server.bat client-release/
-          cp server/run-server.sh client-release/
+          cp client/run-client.bat client-release/
+          cp client/run-client.sh client-release/
           cp client/build/libs/client.jar client-release/build/
           cd client-release
           zip -r ../client.zip .
@@ -54,8 +54,8 @@ jobs:
           cp server/run-server.bat server-release/
           cp server/run-server.sh server-release/
           cp server/build/libs/server.jar server-release/build/
-          cp server/src/main/resources/application.properties server-release/
-          cp server/src/main/resources/logback.xml server-release/
+          cp server/create-user.bat server-release/
+          cp server/create-user.sh server-release/
           cd server-release
           zip -r ../server.zip .
         shell: bash
