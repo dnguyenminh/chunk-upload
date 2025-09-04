@@ -62,7 +62,7 @@ jobs:
 
       - name: Delete existing release for tag
         run: |
-          gh release delete ${{ github.ref_name }} --cleanup-tag --yes || echo "No existing release to delete"
+          gh release delete ${{ github.ref_name }} --yes || echo "No existing release to delete"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
