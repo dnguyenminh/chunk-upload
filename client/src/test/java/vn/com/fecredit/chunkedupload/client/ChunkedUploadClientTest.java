@@ -154,7 +154,6 @@ class ChunkedUploadClientTest {
         when(initResponse.statusCode()).thenReturn(200);
         when(initResponse.body()).thenReturn(initResponseBody);
         when(chunk1Response.statusCode()).thenReturn(200);
-        when(chunk1Response.body()).thenReturn("{\"status\":\"OK\"}");
         when(chunk2Response.statusCode()).thenReturn(500);
         when(chunk2Response.body()).thenReturn("Chunk 1 Error");
 
