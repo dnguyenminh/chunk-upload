@@ -2,24 +2,24 @@ package vn.com.fecredit.chunkedupload.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.*;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.*;
 import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import vn.com.fecredit.chunkedupload.model.TenantAccount;
 import vn.com.fecredit.chunkedupload.model.util.ChecksumUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,7 +32,7 @@ public class ChunkedUploadImageTest {
     @BeforeEach
     public void setupTestUsers() {
         repo.deleteAll();
-        vn.com.fecredit.chunkedupload.model.TenantAccount user = new vn.com.fecredit.chunkedupload.model.TenantAccount();
+        TenantAccount user = new TenantAccount();
         user.setTenantId("testTenant3");
         user.setUsername("user3");
         user.setPassword("{bcrypt}$2a$10$Lu4NwC5fbHT7kXV0o0PdDuX2NGsz0U/4ipCCa3GezK5hHSOguhtaG"); // bcrypt for "password"
@@ -82,8 +82,7 @@ public class ChunkedUploadImageTest {
         HttpHeaders headers = authHeaders(username, password);
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         HttpEntity<LinkedMultiValueMap<String, Object>> entity = new HttpEntity<>(params, headers);
-        ResponseEntity<String> resp = restTemplate().postForEntity(chunkUrl, entity, String.class);
-        return resp;
+        return restTemplate().postForEntity(chunkUrl, entity, String.class);
     }
 
     @Test
@@ -93,7 +92,6 @@ public class ChunkedUploadImageTest {
         JsonNode uploadJson = startUpload(imagePath, "user3", "password");
         String uploadId = uploadJson.get("uploadId").asText();
         int chunkSize = uploadJson.get("chunkSize").asInt();
-//        long fileSize = uploadJson.get("fileSize").asLong();
         long fileSize = Files.size(imagePath);
         int totalChunks = (int) Math.ceil((double) fileSize / chunkSize);
 
@@ -103,7 +101,8 @@ public class ChunkedUploadImageTest {
                 int buffSize = restFileSize < chunkSize ? (int) restFileSize : chunkSize;
                 restFileSize = restFileSize - chunkSize;
                 byte[] buff = new byte[buffSize];
-                inputStream.read(buff);
+                int bytesRead = inputStream.read(buff);
+                assertEquals(buffSize, bytesRead);
                 ByteArrayResource fileResource = new ByteArrayResource(buff) {
                     @Override
                     public String getFilename() {
@@ -118,9 +117,11 @@ public class ChunkedUploadImageTest {
         }
 
         // Read assembled file
-        Long userId = repo.findByUsername("user3").get().getId();
+        Optional<TenantAccount> userAccountOpt = repo.findByUsername("user3");
+        assertTrue(userAccountOpt.isPresent(), "Test user 'user3' not found in database");
+        Long userId = userAccountOpt.get().getId();
         Path assembledPath = Paths.get("uploads/complete/" + userId + "/" + uploadId + "_" + filename);
-        System.out.println("assembledPath ==> " + assembledPath.toAbsolutePath().toString());
+        System.out.println("assembledPath ==> " + assembledPath.toAbsolutePath());
 
         assertTrue(Files.exists(assembledPath), "Assembled file not found");
 

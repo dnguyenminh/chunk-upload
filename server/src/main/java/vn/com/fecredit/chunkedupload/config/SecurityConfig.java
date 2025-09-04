@@ -1,18 +1,17 @@
 package vn.com.fecredit.chunkedupload.config;
 
-import static org.springframework.security.config.Customizer.withDefaults;
-
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.web.SecurityFilterChain;
-
-import vn.com.fecredit.chunkedupload.model.TenantAccountRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import vn.com.fecredit.chunkedupload.model.TenantAccountRepository;
+
+import static org.springframework.security.config.Customizer.withDefaults;
 
 /**
  * Security configuration for the chunked upload service.

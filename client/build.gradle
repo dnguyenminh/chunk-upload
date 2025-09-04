@@ -1,4 +1,10 @@
-apply plugin: 'java'
+plugins {
+    id 'application'
+}
+
+application {
+    mainClass = 'vn.com.fecredit.chunkedupload.client.ClientApp'
+}
 
 dependencies {
     implementation project(':model')
@@ -31,5 +37,18 @@ dependencies {
         testImplementation('org.junit.platform:junit-platform-commons:1.12.2')
         testImplementation('org.junit.platform:junit-platform-engine:1.12.2')
         testImplementation('org.junit.platform:junit-platform-launcher:1.12.2')
+    }
+}
+
+jar {
+    manifest {
+        attributes(
+                'Main-Class': application.mainClass,
+        )
+    }
+    // Avoid duplicate META-INF entries when unpacking runtime dependencies
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
     }
 }

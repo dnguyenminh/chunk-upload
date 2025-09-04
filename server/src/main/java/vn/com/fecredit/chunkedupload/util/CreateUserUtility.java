@@ -3,9 +3,9 @@ package vn.com.fecredit.chunkedupload.util;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import vn.com.fecredit.chunkedupload.model.TenantAccount;
 import vn.com.fecredit.chunkedupload.model.TenantAccountRepository;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @SpringBootApplication(scanBasePackages = "vn.com.fecredit.chunkedupload")
 public class CreateUserUtility {

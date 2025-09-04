@@ -13,7 +13,7 @@ REM Check for help first and exit immediately
 if /I "%~1"=="--help" (
     echo Usage: run-server.bat [options]
     echo.
-    echo Options ^(can be provided as key=value or --key=value^):
+    echo Options (can be provided as key=value or --key=value):
     echo.
     echo   server.port=PORT
     echo       Default: 8080
@@ -21,11 +21,11 @@ if /I "%~1"=="--help" (
     echo.
     echo   chunkedupload.chunk-size=BYTES
     echo       Default: 524288
-    echo       Purpose: Default chunk size ^(in bytes^) used by the server when creating upload sessions.
+    echo       Purpose: Default chunk size (in bytes) used by the server when creating upload sessions.
     echo.
     echo   chunkedupload.inprogress-dir=PATH
     echo       Default: uploads/in-progress
-    echo       Purpose: Directory where partial ^(in-progress^) upload .part files are stored.
+    echo       Purpose: Directory where partial (in-progress) upload .part files are stored.
     echo.
     echo   chunkedupload.complete-dir=PATH
     echo       Default: uploads/complete
@@ -44,7 +44,7 @@ if /I "%~1"=="--dry-run" (
     shift /1
 )
 
-REM Collect allowed args
+REM Collect allowed args and format them for Spring Boot (--key=value)
 set "ARGS="
 :parse_args
 if "%~1"=="" goto after_parse
@@ -59,7 +59,7 @@ if errorlevel 1 (
 for %%K in (%ALLOWED%) do (
     echo %CLEAN% | findstr /B /C:"%%K=" >nul
     if not errorlevel 1 (
-        set "ARGS=!ARGS! %ARG%"
+        set "ARGS=!ARGS! --%CLEAN%"
         goto next_arg
     )
 )
@@ -69,18 +69,22 @@ shift /1
 goto parse_args
 
 :after_parse
-set "JAR=build\libs\server.jar"
-REM Build classpath from all jars in libs plus the main jar
-set "CLASSPATH=%JAR%;libs\"
-set "JAVA_CMD=java -cp %CLASSPATH% vn.com.fecredit.chunkedupload.UploadApplication !ARGS!"
-echo [DEBUG] JAVA_CMD=%JAVA_CMD%
+set "JAR_PATH=build\libs\server.jar"
+if not exist "!JAR_PATH!" (
+    echo Error: Server JAR not found at !JAR_PATH!
+    echo Please build the project first by running '..\gradlew.bat build'
+    exit /b 1
+)
+
+set "JAVA_CMD=java -jar !JAR_PATH! !ARGS!"
 
 if "%DRYRUN%"=="1" (
-    echo Dry run enabled, not launching JVM.
+    echo Dry run enabled. Command that would be executed:
+    echo !JAVA_CMD!
     exit /b 0
 )
 
-echo Running: %JAVA_CMD%
-%JAVA_CMD%
+echo Running: !JAVA_CMD!
+!JAVA_CMD!
 
 endlocal

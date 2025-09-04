@@ -2,6 +2,7 @@ package vn.com.fecredit.chunkedupload.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+
 import java.time.LocalDateTime;
 
 /**

@@ -1,7 +1,6 @@
 package vn.com.fecredit.chunkedupload.manager;
 
 import org.springframework.stereotype.Component;
-
 import vn.com.fecredit.chunkedupload.service.ChunkedUploadService.Header;
 
 import java.nio.file.Path;
@@ -56,7 +55,7 @@ public class BitsetManager {
      * 
      * @param partPath    The path to the partial file being assembled.
      * @param chunkNumber The 0-based index of the chunk that was just uploaded.
-     * @param totalChunks The total number of chunks for the file.
+     * @param header      The header of the upload file, containing metadata like total chunks.
      * @return {@code true} if all chunks have been uploaded, {@code false}
      *         otherwise.
      *
@@ -81,18 +80,5 @@ public class BitsetManager {
             }
         }
         return true; // All chunks are present
-    }
-
-    /**
-     * Retrieves the bitset for a given upload.
-     * If no bitset exists for the given path, a new, empty bitset is created and
-     * returned.
-     * 
-     * @param partPath    The path to the partial file.
-     * @param totalChunks The total number of chunks for the file.
-     * @return The byte array representing the bitset for the upload.
-     */
-    public byte[] getBitset(Path partPath, int totalChunks) {
-        return bitsets.getOrDefault(partPath.toString(), new byte[(totalChunks + 7) / 8]);
     }
 }
