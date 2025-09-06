@@ -10,32 +10,7 @@ REM Whitelist of allowed property keys
 set "ALLOWED=server.port chunkedupload.chunk-size chunkedupload.inprogress-dir chunkedupload.complete-dir"
 
 REM Check for help first and exit immediately
-if /I "%~1"=="--help" (
-    echo Usage: run-server.bat [options]
-    echo.
-    echo Options (can be provided as key=value or --key=value):
-    echo.
-    echo   server.port=PORT
-    echo       Default: 8080
-    echo       Purpose: TCP port the Spring Boot application will bind to.
-    echo.
-    echo   chunkedupload.chunk-size=BYTES
-    echo       Default: 524288
-    echo       Purpose: Default chunk size (in bytes) used by the server when creating upload sessions.
-    echo.
-    echo   chunkedupload.inprogress-dir=PATH
-    echo       Default: uploads/in-progress
-    echo       Purpose: Directory where partial (in-progress) upload .part files are stored.
-    echo.
-    echo   chunkedupload.complete-dir=PATH
-    echo       Default: uploads/complete
-    echo       Purpose: Directory where assembled, completed uploads are stored.
-    echo.
-    echo Special flags:
-    echo   --help    Print this help and exit.
-    echo   --dry-run Show the resolved java command that would be executed, but do not launch the JVM.
-    exit /b 0
-)
+if "%~1"=="--help" goto show_help
 
 REM Dry run support
 set "DRYRUN=0"
@@ -71,33 +46,33 @@ goto parse_args
 :after_parse
 REM Find the server JAR file (with or without version)
 set "JAR_PATH="
+
+REM Try versioned JARs first
 if exist "build\libs\server-*.jar" (
-    REM Use the first versioned JAR found
     for %%f in ("build\libs\server-*.jar") do (
         set "JAR_PATH=%%f"
-        goto jar_found
+        goto found_jar
     )
 )
-if not defined JAR_PATH (
-    if exist "build\libs\server.jar" (
-        REM Fallback to plain server.jar
-        set "JAR_PATH=build\libs\server.jar"
-        goto jar_found
-    )
+
+REM Fallback to plain server.jar
+if exist "build\libs\server.jar" (
+    set "JAR_PATH=build\libs\server.jar"
+    goto found_jar
 )
-if not defined JAR_PATH (
-    if exist "build\libs\server-plain.jar" (
-        REM Fallback to server-plain.jar
-        set "JAR_PATH=build\libs\server-plain.jar"
-        goto jar_found
-    )
+
+REM Fallback to server-plain.jar
+if exist "build\libs\server-plain.jar" (
+    set "JAR_PATH=build\libs\server-plain.jar"
+    goto found_jar
 )
-:jar_found
-if not defined JAR_PATH (
-    echo Error: Server JAR not found in build\libs\
-    echo Please build the project first by running '..\gradlew.bat build'
-    exit /b 1
-)
+
+REM No JAR found
+echo Error: Server JAR not found in build\libs\
+echo Please build the project first by running '..\gradlew.bat build'
+exit /b 1
+
+:found_jar
 
 set "JAVA_CMD=java -jar !JAR_PATH! !ARGS!"
 
@@ -111,3 +86,29 @@ echo Running: !JAVA_CMD!
 !JAVA_CMD!
 
 endlocal
+
+:show_help
+echo Usage: run-server.bat [options]
+echo.
+echo Options (can be provided as key=value or --key=value):
+echo.
+echo   server.port=PORT
+echo       Default: 8080
+echo       Purpose: TCP port the Spring Boot application will bind to.
+echo.
+echo   chunkedupload.chunk-size=BYTES
+echo       Default: 524288
+echo       Purpose: Default chunk size (in bytes) used by the server when creating upload sessions.
+echo.
+echo   chunkedupload.inprogress-dir=PATH
+echo       Default: uploads/in-progress
+echo       Purpose: Directory where partial (in-progress) upload .part files are stored.
+echo.
+echo   chunkedupload.complete-dir=PATH
+echo       Default: uploads/complete
+echo       Purpose: Directory where assembled, completed uploads are stored.
+echo.
+echo Special flags:
+echo   --help    Print this help and exit.
+echo   --dry-run Show the resolved java command that would be executed, but do not launch the JVM.
+exit /b 1

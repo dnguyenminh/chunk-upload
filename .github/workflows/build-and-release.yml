@@ -55,7 +55,7 @@ jobs:
           cp core/build/libs/core-*.jar server-release/libs/
           cp server/run-server.bat server-release/
           cp server/run-server.sh server-release/
-          cp server/build/libs/server-plain-*.jar server-release/build/
+          cp server/build/libs/server-plain-*.jar server-release/build/libs/
           cp server/create-user.bat server-release/
           cp server/create-user.sh server-release/
           cd server-release
