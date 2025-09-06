@@ -2,6 +2,7 @@ package vn.com.fecredit.chunkedupload.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import vn.com.fecredit.chunkedupload.model.interfaces.ITenantAccount;
 
 /**
  * JPA entity representing a tenant account in the multi-tenant system.
@@ -25,7 +26,7 @@ import lombok.Data;
 @Entity
 @Table(name = "tenants")
 @Data
-public class TenantAccount {
+public class TenantAccount implements ITenantAccount {
 
     /**
      * Primary key for the tenant account (auto-generated).

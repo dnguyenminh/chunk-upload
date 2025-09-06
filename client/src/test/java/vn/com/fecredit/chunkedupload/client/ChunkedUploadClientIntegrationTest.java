@@ -184,7 +184,7 @@ class ChunkedUploadClientIntegrationTest {
                 .build();
         long tenantId = getTenantIdByUsername(USERNAME, USERNAME, PASSWORD);
         String uploadId = client.upload(tempFile, null, null);
-        Path uploadedFilePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), uploadId + "_" + tempFile.getFileName().toString());
+        Path uploadedFilePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), tempFile.getFileName().toString());
         filesToDelete.add(uploadedFilePath);
 
         // Wait and retry to ensure file is assembled before checking existence
@@ -239,7 +239,7 @@ class ChunkedUploadClientIntegrationTest {
                 .build();
         long tenantId = getTenantIdByUsername(USERNAME, USERNAME, PASSWORD);
         String uploadId = client.upload(bigFilePathLocal, null, null);
-        Path bigFilePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), uploadId + "_" + bigFilePathLocal.getFileName().toString());
+        Path bigFilePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), bigFilePathLocal.getFileName().toString());
         filesToDelete.add(bigFilePath);
 
         // Wait and retry to ensure big file is assembled before checking existence
@@ -303,7 +303,7 @@ class ChunkedUploadClientIntegrationTest {
         } catch (RuntimeException e) {
             System.out.println("Resume failed as expected: " + e.getMessage());
         }
-        Path filePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), uploadId + "_" + filePathLocal.getFileName().toString());
+        Path filePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), filePathLocal.getFileName().toString());
         filesToDelete.add(filePath);
 
         System.out.println("[DEBUG] Checking file existence: " + filePath.toAbsolutePath());

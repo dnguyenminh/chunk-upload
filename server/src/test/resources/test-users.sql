@@ -2,7 +2,7 @@
 DROP TABLE IF EXISTS "upload_info";
 DROP TABLE IF EXISTS "tenants";
 
-CREATE TABLE upload_info
+CREATE TABLE IF NOT EXISTS upload_info
 (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     upload_id VARCHAR(255) NOT NULL UNIQUE,
@@ -13,7 +13,7 @@ CREATE TABLE upload_info
     UPLOAD_DATE_TIME TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE tenants
+CREATE TABLE IF NOT EXISTS tenants
 (
     id       BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id VARCHAR(255) NOT NULL,
@@ -22,6 +22,7 @@ CREATE TABLE tenants
 );
 
 INSERT INTO tenants (tenant_id, username, password)
-VALUES ('testTenant',
-        'user',
-        '{bcrypt}$2a$10$ab5u9WOWBuZ.474A3TiGy.geEZvOviygiBnNfZITbdC5ehKzGiYzW');
+SELECT 'testTenant', 'user', '{bcrypt}$2a$10$ab5u9WOWBuZ.474A3TiGy.geEZvOviygiBnNfZITbdC5ehKzGiYzW'
+WHERE NOT EXISTS (
+    SELECT 1 FROM tenants WHERE username = 'user'
+);

@@ -6,21 +6,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import vn.com.fecredit.chunkedupload.manager.BitsetManager;
-import vn.com.fecredit.chunkedupload.manager.SessionManager;
+import vn.com.fecredit.chunkedupload.model.Header;
 import vn.com.fecredit.chunkedupload.model.InitRequest;
 import vn.com.fecredit.chunkedupload.model.InitResponse;
 import vn.com.fecredit.chunkedupload.model.UploadInfo;
 import vn.com.fecredit.chunkedupload.service.ChunkedUploadService;
-import vn.com.fecredit.chunkedupload.service.ChunkedUploadService.Header;
 
 import java.io.IOException;
-import java.nio.channels.FileChannel;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.security.Principal;
 import java.util.Map;
 
@@ -48,10 +42,6 @@ public class ChunkedUploadController {
     @Autowired
     private ChunkedUploadService uploadService;
     @Autowired
-    private SessionManager sessionManager;
-    @Autowired
-    private BitsetManager bitsetManager;
-    @Autowired
     private vn.com.fecredit.chunkedupload.model.TenantAccountRepository tenantAccountRepository;
 
     /**
@@ -73,14 +63,14 @@ public class ChunkedUploadController {
      * @throws IOException If there is an error creating upload session
      */
     @PostMapping("/init")
-    public ResponseEntity<?> initUpload(@Valid @RequestBody InitRequest req, Principal principal) throws IOException {
+    public ResponseEntity<?> initUpload(@Valid @RequestBody InitRequest req, Principal principal) throws Throwable {
         log.debug("Received InitRequest: filename={}, fileSize={}", req.getFilename(), req.getFileSize());
         try {
             return ResponseEntity.ok(newUpload(req, principal));
         } catch (IllegalArgumentException e) {
             log.debug("Init validation failed: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.debug("Upload initialization failed: {}", e.getMessage());
             throw e;
         }
@@ -94,47 +84,25 @@ public class ChunkedUploadController {
      * @return InitResponse with session info
      * @throws IOException on I/O error
      */
-    private InitResponse newUpload(InitRequest req, Principal principal) throws IOException {
-        int chunkSize = uploadService.getDefaultChunkSize();
-        long fileSize = req.getFileSize();
-        int totalChunks = (int) Math.ceil((double) fileSize / chunkSize);
-
-        if (chunkSize <= 0) {
-            throw new IllegalArgumentException("chunkSize must be > 0");
-        }
-
-        validateNewUploadRequest(req);
-
-        String tenantAccountId = principal != null ? principal.getName() : "unknown";
+    private InitResponse newUpload(InitRequest req, Principal principal) throws Throwable {
+        String username = getTenantAccountId(principal);
         String brokenUploadId = req.getBrokenUploadId();
 
         if (brokenUploadId != null && !brokenUploadId.isEmpty()) {
-            UploadInfo info = uploadService.findUploadInfoByTenantAndUploadId(tenantAccountId, brokenUploadId);
+            UploadInfo info = uploadService.findUploadInfoByTenantAndUploadId(username, brokenUploadId);
             if (info != null && info.getChecksum().equals(req.getChecksum())) {
-                Path brokenPartPath = uploadService.getPartPath(tenantAccountId, brokenUploadId);
-                byte[] bitsetBytes = uploadService.readBitsetBytesFromHeader(brokenPartPath);
-                InitResponse resp = new InitResponse(brokenUploadId, totalChunks, chunkSize, fileSize,
+                Header header = uploadService.readHeader(username, brokenUploadId);
+                InitResponse resp = new InitResponse(brokenUploadId, header.totalChunks, header.chunkSize, header.fileSize,
                         info.getFilename());
-                resp.setBitsetBytes(bitsetBytes);
+                resp.setBitsetBytes(header.bitset);
                 return resp;
             }
         }
 
         String uploadId = java.util.UUID.randomUUID().toString();
-        Path partPath = uploadService.getPartPath(tenantAccountId, uploadId);
-        uploadService.storeFilename(uploadId, req.getFilename());
-        Header header = uploadService.createOrValidateHeader(partPath, totalChunks, chunkSize, fileSize);
-        sessionManager.startSession(uploadId, fileSize);
-
-        UploadInfo info = new UploadInfo();
-        info.setUploadId(uploadId);
-        info.setChecksum(req.getChecksum());
-        info.setFilename(req.getFilename());
-        info.setUploadDateTime(java.time.LocalDateTime.now());
-        info.setTenant(uploadService.findTenantByUsername(tenantAccountId));
-        uploadService.saveUploadInfo(info);
-
-        return new InitResponse(uploadId, totalChunks, chunkSize, fileSize, req.getFilename(), header.bitset);
+        uploadService.registerUploadingFile(username, uploadId, req.getFilename(), req.getFileSize(), req.getChecksum());
+        Header header = uploadService.readHeader(username, uploadId);
+        return new InitResponse(uploadId, header.totalChunks, header.chunkSize, header.fileSize, req.getFilename(), header.bitset);
     }
 
     /**
@@ -152,55 +120,23 @@ public class ChunkedUploadController {
             @RequestParam(value = "uploadId") String uploadId,
             @RequestParam(value = "chunkNumber") int chunkNumber,
             @RequestPart(value = "file") MultipartFile file,
-            Principal principal) throws IOException {
-
-        String tenantAccountId = getTenantAccountId(principal);
-        Path partPath = uploadService.getPartPath(tenantAccountId, uploadId);
-        Header header;
+            Principal principal) throws Throwable {
+        String username = getTenantAccountId(principal);
         try {
-            header = uploadService.readHeader(FileChannel.open(partPath, StandardOpenOption.READ));
-        } catch (java.nio.file.NoSuchFileException e) {
-            return ResponseEntity.status(400).body("Invalid uploadId or missing part file");
+            uploadService.writeChunk(username, uploadId, chunkNumber, file.getBytes());
+        } catch (IOException ioe) {
+            log.debug("Chunk IO error: {}", ioe.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Chunk IO error: " + ioe.getMessage());
+        } catch (IllegalArgumentException e) {
+            log.debug("Chunk validation failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chunk validation failed: " + e.getMessage());
+        } catch (Throwable throwable) {
+            log.debug("Chunk upload system Fail: {}", throwable.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chunk upload system failed: " + throwable.getMessage());
         }
-
-        ResponseEntity<?> validationResponse = validateChunk(chunkNumber, header, file, uploadId, principal);
-        if (validationResponse != null)
-            return validationResponse;
-
-        validationResponse = writeChunk(partPath, chunkNumber, header, file);
-        if (validationResponse != null)
-            return validationResponse;
-
-        if (bitsetManager.markChunkAndCheckComplete(partPath, chunkNumber, header)) {
-            handleLastChunk(partPath, tenantAccountId, uploadId, header);
-        }
-
         log.debug("Chunk upload successful for uploadId={}, chunkNumber={}", uploadId, chunkNumber);
         return ResponseEntity.ok(Map.of("status", "ok", "uploadId", uploadId));
-    }
-
-    /**
-     * Validates the chunk upload request for correctness and session state.
-     *
-     * @param chunkNumber Chunk index
-     * @param header      Header of the upload file
-     * @param file        Chunk data
-     * @param uploadId    Upload session ID
-     * @param principal   Authenticated user principal
-     * @return ResponseEntity with validation error or null if valid
-     */
-    private ResponseEntity<?> validateChunk(int chunkNumber, Header header, MultipartFile file,
-            String uploadId, Principal principal) {
-        ResponseEntity<?> validationResponse = validateChunkSize(chunkNumber, header, file);
-        if (validationResponse != null)
-            return validationResponse;
-
-        validationResponse = validateSessionActive(uploadId);
-        if (validationResponse != null)
-            return validationResponse;
-
-        String tenantAccountId = getTenantAccountId(principal);
-        return tryValidateChunkRequest(chunkNumber, header, uploadId, tenantAccountId);
     }
 
     /**
@@ -215,139 +151,18 @@ public class ChunkedUploadController {
     }
 
     /**
-     * Writes the uploaded chunk to the file system.
-     *
-     * @param partPath    Path to file part
-     * @param chunkNumber Chunk index
-     * @param header      Header of the upload file
-     * @param file        Chunk data
-     * @return ResponseEntity with write result or null if successful
-     */
-    private ResponseEntity<?> writeChunk(Path partPath, int chunkNumber, Header header, MultipartFile file) {
-        return writeChunkToFile(partPath, chunkNumber, header.chunkSize, file);
-    }
-
-    /**
-     * Validates the size of the uploaded chunk against expected values.
-     *
-     * @param chunkNumber Chunk index
-     * @param header      Header of the upload file
-     * @param file        Chunk data
-     * @return ResponseEntity with validation error or null if valid
-     */
-    private ResponseEntity<?> validateChunkSize(int chunkNumber, Header header, MultipartFile file) {
-        long actualChunkLength = file != null ? file.getSize() : -1;
-        boolean isLastChunk = (chunkNumber == header.totalChunks - 1);
-        long expectedLastChunkSize = header.fileSize % header.chunkSize;
-        if (expectedLastChunkSize == 0)
-            expectedLastChunkSize = header.chunkSize;
-
-        if (header.totalChunks > 1 || actualChunkLength != header.fileSize) {
-            if (!isLastChunk && actualChunkLength != header.chunkSize) {
-                log.debug("Invalid chunk size: expected={}, actual={}", header.chunkSize, actualChunkLength);
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body("Invalid chunk size for chunk " + chunkNumber);
-            }
-            if (isLastChunk && actualChunkLength != expectedLastChunkSize) {
-                log.debug("Invalid last chunk size: expected={}, actual={}", expectedLastChunkSize, actualChunkLength);
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid last chunk size");
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Checks if the upload session is active.
-     *
-     * @param uploadId Upload session ID
-     * @return ResponseEntity with error or null if active
-     */
-    private ResponseEntity<?> validateSessionActive(String uploadId) {
-        if (!sessionManager.isSessionActive(uploadId)) {
-            log.debug("Upload session is not active or has been aborted for uploadId={}", uploadId);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("Upload session is not active or has been aborted.");
-        }
-        return null;
-    }
-
-    /**
-     * Attempts to validate the chunk upload request and handles exceptions.
-     *
-     * @param chunkNumber     Chunk index
-     * @param header          Header of the upload file
-     * @param uploadId        Upload session ID
-     * @param tenantAccountId Tenant account ID
-     * @return ResponseEntity with validation error or null if valid
-     */
-    private ResponseEntity<?> tryValidateChunkRequest(int chunkNumber, Header header, String uploadId,
-            String tenantAccountId) {
-        try {
-            validateChunkRequest(chunkNumber, header, uploadId, tenantAccountId);
-        } catch (IOException ioe) {
-            log.debug("Chunk validation IO error: {}", ioe.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Chunk validation IO error: " + ioe.getMessage());
-        } catch (IllegalArgumentException e) {
-            log.debug("Chunk validation failed: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chunk upload failed: " + e.getMessage());
-        }
-        return null;
-    }
-
-    /**
-     * Writes the uploaded chunk to the file system (internal helper).
-     *
-     * @param partPath    Path to file part
-     * @param chunkNumber Chunk index
-     * @param chunkSize   Expected chunk size
-     * @param file        Chunk data
-     * @return ResponseEntity with write result or null if successful
-     */
-    private ResponseEntity<?> writeChunkToFile(Path partPath, int chunkNumber, int chunkSize, MultipartFile file) {
-        try {
-            if (file == null) {
-                throw new IllegalArgumentException("Multipart file must not be null");
-            }
-            uploadService.writeChunk(partPath, chunkNumber, chunkSize, file.getBytes());
-        } catch (IllegalArgumentException e) {
-            log.debug("writeChunk validation failed: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chunk upload failed: " + e.getMessage());
-        } catch (Exception e) {
-            log.error("Exception during writeChunk: {}: {}", e.getClass().getName(), e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Chunk upload failed: " + e.getMessage());
-        }
-        return null;
-    }
-
-    /**
-     * Finalizes the upload process when the last chunk is received.
-     *
-     * @param partPath        Path to file part
-     * @param tenantAccountId Tenant account ID
-     * @param uploadId        Upload session ID
-     * @param header          Header of the upload file
-     * @throws IOException on I/O error
-     */
-    private void handleLastChunk(Path partPath, String tenantAccountId, String uploadId, Header header)
-            throws IOException {
-        Path finalPath = uploadService.getFinalPath(tenantAccountId, uploadId);
-        uploadService.assembleFile(partPath, finalPath, header);
-        uploadService.removeFilename(uploadId);
-        sessionManager.endSession(uploadId);
-        log.debug("Upload completed for uploadId={}", uploadId);
-    }
-
-    /**
      * Gets the current status of an upload session.
      *
      * @param uploadId The upload session ID
      * @return ResponseEntity containing session status information
      */
     @GetMapping("/{uploadId}/status")
-    public ResponseEntity<?> getStatus(@PathVariable("uploadId") String uploadId) {
-        return ResponseEntity.ok(sessionManager.getStatus(uploadId));
+    public ResponseEntity<?> getStatus(@PathVariable("uploadId") String uploadId, Principal principal) throws Throwable {
+        UploadInfo uploadInfo = uploadService.findUploadInfoByTenantAndUploadId(uploadId, principal.getName());
+        if (uploadInfo != null) {
+            return ResponseEntity.ok("No file uploading in progress for the request: %s".formatted(uploadId));
+        }
+        return ResponseEntity.ok("The uploading file is in progress for the request: %s".formatted(uploadId));
     }
 
     /**
@@ -357,10 +172,13 @@ public class ChunkedUploadController {
      * @return ResponseEntity with no content on success
      */
     @DeleteMapping("/{uploadId}")
-    public ResponseEntity<?> abort(@PathVariable("uploadId") String uploadId) {
-        uploadService.removeFilename(uploadId);
-        sessionManager.endSession(uploadId);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<?> abort(@PathVariable("uploadId") String uploadId, Principal principal) {
+        try {
+            uploadService.deleteUploadFile(principal.getName(), uploadId);
+            return ResponseEntity.noContent().build();
+        } catch (Throwable e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @ExceptionHandler(SecurityException.class)
@@ -373,40 +191,4 @@ public class ChunkedUploadController {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
     }
 
-    /**
-     * Validates the initialization request for a new upload session.
-     *
-     * @param req Initialization request
-     * @throws IllegalArgumentException if request is invalid
-     */
-    private void validateNewUploadRequest(InitRequest req) {
-        int chunkSize = uploadService.getDefaultChunkSize();
-        if (chunkSize <= 0) {
-            log.debug("Invalid chunkSize: {}", chunkSize);
-            throw new IllegalArgumentException("chunkSize must be > 0");
-        }
-        if (req.getFileSize() <= 0 || !StringUtils.hasText(req.getFilename())) {
-            throw new IllegalArgumentException("fileSize and filename must be provided for a new upload");
-        }
-    }
-
-    /**
-     * Validates the chunk request for an upload session.
-     *
-     * @param chunkNumber     Chunk index
-     * @param header          Header of the upload file
-     * @param uploadId        Upload session ID
-     * @param tenantAccountId Tenant account ID
-     * @throws IOException if chunk request is invalid or session does not exist
-     */
-    private void validateChunkRequest(int chunkNumber, Header header, String uploadId, String tenantAccountId)
-            throws IOException {
-        if (chunkNumber < 0 || chunkNumber > header.totalChunks) {
-            throw new IllegalArgumentException("Invalid chunk number: " + chunkNumber);
-        }
-        Path partPath = uploadService.getPartPath(tenantAccountId, uploadId);
-        if (!partPath.toFile().exists()) {
-            throw new IOException("Upload has been aborted or does not exist.");
-        }
-    }
 }

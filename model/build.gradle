@@ -9,17 +9,6 @@ repositories {
 dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-annotations'
     implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
-    testImplementation(project(':server')) {
-        exclude group: 'org.junit.jupiter'
-        exclude group: 'org.junit.platform'
-        exclude group: 'org.junit', module: 'junit-bom'
-        exclude group: 'org.junit.jupiter', module: 'junit-jupiter-api'
-        exclude group: 'org.junit.jupiter', module: 'junit-jupiter-engine'
-        exclude group: 'org.junit.jupiter', module: 'junit-jupiter-params'
-        exclude group: 'org.junit.platform', module: 'junit-platform-commons'
-        exclude group: 'org.junit.platform', module: 'junit-platform-engine'
-        exclude group: 'org.junit.platform', module: 'junit-platform-launcher'
-    }
     testImplementation 'org.junit.jupiter:junit-jupiter:5.12.2'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.12.2'
     testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.12.2'

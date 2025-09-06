@@ -2,6 +2,7 @@ package vn.com.fecredit.chunkedupload.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import vn.com.fecredit.chunkedupload.model.interfaces.IUploadInfo;
 
 import java.time.LocalDateTime;
 
@@ -28,7 +29,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "upload_info")
 @Data
-public class UploadInfo {
+public class UploadInfo implements IUploadInfo {
 
     /**
      * Auto-generated primary key.

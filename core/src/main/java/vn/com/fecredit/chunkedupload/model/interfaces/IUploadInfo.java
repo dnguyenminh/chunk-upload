@@ -1,4 +1,4 @@
-package vn.com.fecredit.chunkedupload.model;
+package vn.com.fecredit.chunkedupload.model.interfaces;
 
 import java.time.LocalDateTime;
 

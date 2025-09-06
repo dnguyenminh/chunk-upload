@@ -50,7 +50,7 @@ Each module (`server`, `client`, `model`) has its own `build.gradle` file defini
 ## Directory Structure
 * Upload directories are configurable in `application.properties` within the `server` module:
     - `chunkedupload.inprogress-dir`: Temporary storage for in-progress uploads (default: `uploads/in-progress`)
-    - `chunkedupload.complete-dir`: Final assembled files (default: `uploads/complete`), named as `<uploadId>_<originalFilename>`
+    - `chunkedupload.complete-dir`: Final assembled files (default: `uploads/complete`), named as `<originalFilename>`
 
 ### Release Artifacts Structure
 

@@ -120,7 +120,7 @@ public class ChunkedUploadImageTest {
         Optional<TenantAccount> userAccountOpt = repo.findByUsername("user3");
         assertTrue(userAccountOpt.isPresent(), "Test user 'user3' not found in database");
         Long userId = userAccountOpt.get().getId();
-        Path assembledPath = Paths.get("uploads/complete/" + userId + "/" + uploadId + "_" + filename);
+        Path assembledPath = Paths.get("uploads/complete/" + userId + "/" + filename);
         System.out.println("assembledPath ==> " + assembledPath.toAbsolutePath());
 
         assertTrue(Files.exists(assembledPath), "Assembled file not found");

@@ -1,0 +1,30 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'vn.com.fecredit.chunkedupload'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Lombok for reducing boilerplate code in model classes
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+    implementation 'ch.qos.logback:logback-classic:1.5.18'
+
+    // Standard validation APIs
+    implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
+    implementation project(':model')
+
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+}

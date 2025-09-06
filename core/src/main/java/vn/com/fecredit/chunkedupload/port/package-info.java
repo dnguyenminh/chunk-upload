@@ -3,4 +3,4 @@
  * In a Ports and Adapters architecture, ports are interfaces that define
  * how the application core interacts with external systems (e.g., databases, UI).
  */
-package vn.com.fecredit.chunkedupload.service.port;
+package vn.com.fecredit.chunkedupload.port;

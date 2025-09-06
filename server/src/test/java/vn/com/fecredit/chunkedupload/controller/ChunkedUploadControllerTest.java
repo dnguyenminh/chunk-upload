@@ -59,7 +59,8 @@ public class ChunkedUploadControllerTest {
         // Tests the entire upload flow, from initialization to completion, with a small file.
         // Ensures basic upload functionality is working correctly.
         int fileSize = 524288+20;
-        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":" + fileSize + ", \"filename\":\"testfile.txt\", \"checksum\":\"testchecksum\"}";
+        String correctChecksum = "ced0ea64c49a29b3e4e840df03bec51b967441578a5054175dbbba13cb5168cf";
+        String initJson = "{\"totalChunks\":2, \"chunkSize\":524288, \"fileSize\":" + fileSize + ", \"filename\":\"testfile.txt\", \"checksum\":\"" + correctChecksum + "\"}";
         String res = mockMvc.perform(post("/api/upload/init")
                         .with(httpBasic("user", "password"))
                         .contentType(MediaType.APPLICATION_JSON)

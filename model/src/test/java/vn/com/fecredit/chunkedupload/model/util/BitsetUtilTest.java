@@ -7,48 +7,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/**
- * Unit tests for BitsetUtil class.
- *
- * <p>
- * Tests cover:
- * <ul>
- * <li>Setting/clearing unused bits for different chunk counts</li>
- * <li>Setting individual bits in various positions</li>
- * <li>Converting between bitset and list representations</li>
- * <li>Edge cases and boundary conditions</li>
- * </ul>
- *
- * <p>
- * Test organization:
- * <ul>
- * <li>setUnusedBits tests with varying chunk counts</li>
- * <li>setUsedBit tests for different bit positions</li>
- * <li>Combined operation tests</li>
- * <li>Conversion tests between formats</li>
- * </ul>
- */
 class BitsetUtilTest {
-
-    /**
-     * Converts a byte array bitset to a binary string representation.
-     *
-     * <p>
-     * Format: Each byte is converted to 8 binary digits, with bytes separated by spaces.
-     * The output is in big-endian order (most significant byte first).
-     *
-     * @param bitset The byte array to convert
-     * @return Space-separated binary string representation
-     */
-    private static String bitsetToBinary(byte[] bitset) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = bitset.length - 1; i > -1; i--) {
-            byte b = bitset[i];
-            sb.append(String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(' ', '0')).append(" ");
-        }
-        return sb.toString().trim();
-    }
-
     /**
      * Tests setting unused bits for 5 chunks in a single byte.
      *
@@ -60,25 +19,25 @@ class BitsetUtilTest {
     void testSetUnusedBits_5Chunks_1Byte() {
         byte[] bitset = new byte[1];
         BitsetUtil.setUnusedBits(bitset, 5);
-        System.out.println(bitsetToBinary(bitset));
-        assertEquals((byte) 0xE0, bitset[0], "Bitset: " + bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0xE0, bitset[0], "Bitset: " + BitsetUtil.bitsetToString(bitset));
     }
 
     @Test
     void testSetUnusedBits_8Chunks_1Byte() {
         byte[] bitset = new byte[1];
         BitsetUtil.setUnusedBits(bitset, 8);
-        System.out.println(bitsetToBinary(bitset));
-        assertEquals((byte) 0x00, bitset[0], "Bitset: " + bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0x00, bitset[0], "Bitset: " + BitsetUtil.bitsetToString(bitset));
     }
 
     @Test
     void testSetUnusedBits_10Chunks_2Bytes() {
         byte[] bitset = new byte[2];
         BitsetUtil.setUnusedBits(bitset, 10);
-        System.out.println(bitsetToBinary(bitset));
-        assertEquals((byte) 0x00, bitset[0], "Bitset: " + bitsetToBinary(bitset));
-        assertEquals((byte) 0xFC, bitset[1], "Bitset: " + bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0x00, bitset[0], "Bitset: " + BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0xFC, bitset[1], "Bitset: " + BitsetUtil.bitsetToString(bitset));
     }
 
     @Test
@@ -86,7 +45,7 @@ class BitsetUtilTest {
         byte[] bitset = new byte[2];
         // Set unused bits for 10 chunks
         BitsetUtil.setUnusedBits(bitset, 10);
-        System.out.println(bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
         // Set used bits for chunk indices 0, 1, 8, 9
         BitsetUtil.setUsedBit(bitset, 0);
         BitsetUtil.setUsedBit(bitset, 1);
@@ -94,7 +53,7 @@ class BitsetUtilTest {
         BitsetUtil.setUsedBit(bitset, 9);
         // Expect: bits 0,1,8,9 set, unused bits set by setUnusedBits
         // Print for debug
-        System.out.println("Combined: " + bitsetToBinary(bitset));
+        System.out.println("Combined: " + BitsetUtil.bitsetToString(bitset));
         // Validate specific bits
         assertEquals((byte) 0x03, bitset[0], "First byte should have bits 0 and 1 set");
         assertEquals(0xFF03, ((bitset[1] & 0xFF) << 8) | (bitset[0] & 0xFF), "Combined bits check");
@@ -104,10 +63,10 @@ class BitsetUtilTest {
     void testSetUnusedBitsAndSetUsedBit_fullByte() {
         byte[] bitset = new byte[1];
         BitsetUtil.setUnusedBits(bitset, 5);
-        System.out.println(bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
         BitsetUtil.setUsedBit(bitset, 0);
         BitsetUtil.setUsedBit(bitset, 4);
-        System.out.println("Combined full byte: " + bitsetToBinary(bitset));
+        System.out.println("Combined full byte: " + BitsetUtil.bitsetToString(bitset));
         assertEquals((byte) 0xF1, bitset[0], "Bits 0 and 4 set, unused bits set");
     }
 
@@ -122,9 +81,9 @@ class BitsetUtilTest {
     void testSetUnusedBits_16Chunks_2Bytes() {
         byte[] bitset = new byte[2];
         BitsetUtil.setUnusedBits(bitset, 16);
-        System.out.println(bitsetToBinary(bitset));
-        assertEquals((byte) 0x00, bitset[0], "Bitset: " + bitsetToBinary(bitset));
-        assertEquals((byte) 0x00, bitset[1], "Bitset: " + bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0x00, bitset[0], "Bitset: " + BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0x00, bitset[1], "Bitset: " + BitsetUtil.bitsetToString(bitset));
         // Removed duplicate testSetUsedBit methods
     }
 
@@ -132,7 +91,7 @@ class BitsetUtilTest {
     void testSetUsedBit_singleBit() {
         byte[] bitset = new byte[1];
         BitsetUtil.setUsedBit(bitset, 0);
-        System.out.println(bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
         assertEquals((byte) 0x01, bitset[0]);
     }
 
@@ -142,7 +101,7 @@ class BitsetUtilTest {
         BitsetUtil.setUsedBit(bitset, 0);
         BitsetUtil.setUsedBit(bitset, 3);
         BitsetUtil.setUsedBit(bitset, 7);
-        System.out.println(bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
         assertEquals((byte) 0x89, bitset[0]);
     }
 
@@ -152,7 +111,7 @@ class BitsetUtilTest {
         BitsetUtil.setUsedBit(bitset, 0);
         BitsetUtil.setUsedBit(bitset, 8);
         BitsetUtil.setUsedBit(bitset, 15);
-        System.out.println(bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
         assertEquals((byte) 0x01, bitset[0]);
         assertEquals((byte) 0x81, bitset[1]);
     }
@@ -161,7 +120,7 @@ class BitsetUtilTest {
     void testSetUsedBit_outOfBounds() {
         byte[] bitset = new byte[1];
         BitsetUtil.setUsedBit(bitset, 8);
-        System.out.println(bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
         assertEquals((byte) 0x00, bitset[0]);
     }
 
@@ -170,7 +129,7 @@ class BitsetUtilTest {
         byte[] bitset = new byte[1];
         BitsetUtil.setUsedBit(bitset, -1);
         // Removed all misplaced/duplicate setUsedBit test methods
-        System.out.println(bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
         assertEquals((byte) 0x00, bitset[0]);
     }
 
@@ -178,31 +137,31 @@ class BitsetUtilTest {
     void testSetUnusedBits_17Chunks_3Bytes() {
         byte[] bitset = new byte[3];
         BitsetUtil.setUnusedBits(bitset, 17);
-        System.out.println(bitsetToBinary(bitset));
-        assertEquals((byte) 0xFE, bitset[2], "Bitset: " + bitsetToBinary(bitset));
-        assertEquals((byte) 0x00, bitset[1], "Bitset: " + bitsetToBinary(bitset));
-        assertEquals((byte) 0x00, bitset[0], "Bitset: " + bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0xFE, bitset[2], "Bitset: " + BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0x00, bitset[1], "Bitset: " + BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0x00, bitset[0], "Bitset: " + BitsetUtil.bitsetToString(bitset));
     }
 
     @Test
     void testSetUnusedBits_24Chunks_3Bytes() {
         byte[] bitset = new byte[3];
         BitsetUtil.setUnusedBits(bitset, 24);
-        System.out.println(bitsetToBinary(bitset));
-        assertEquals((byte) 0x00, bitset[0], "Bitset: " + bitsetToBinary(bitset));
-        assertEquals((byte) 0x00, bitset[1], "Bitset: " + bitsetToBinary(bitset));
-        assertEquals((byte) 0x00, bitset[2], "Bitset: " + bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0x00, bitset[0], "Bitset: " + BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0x00, bitset[1], "Bitset: " + BitsetUtil.bitsetToString(bitset));
+        assertEquals((byte) 0x00, bitset[2], "Bitset: " + BitsetUtil.bitsetToString(bitset));
     }
 
     @Test
     void testSetUnusedBits_73Chunks_10Bytes() {
         byte[] bitset = new byte[10];
         BitsetUtil.setUnusedBits(bitset, 73);
-        System.out.println(bitsetToBinary(bitset));
+        System.out.println(BitsetUtil.bitsetToString(bitset));
         for (int i = 0; i < 9; i++) {
-            assertEquals((byte) 0x00, bitset[i], "Bitset: " + bitsetToBinary(bitset));
+            assertEquals((byte) 0x00, bitset[i], "Bitset: " + BitsetUtil.bitsetToString(bitset));
         }
-        assertEquals((byte) 0xFE, bitset[9], "Bitset: " + bitsetToBinary(bitset));
+        assertEquals((byte) 0xFE, bitset[9], "Bitset: " + BitsetUtil.bitsetToString(bitset));
     }
 
     /**
@@ -214,11 +173,11 @@ class BitsetUtilTest {
      */
     @Test
     void testBitsetToList_basic() {
-        byte[] bitset = new byte[] { (byte)0b10101010, (byte)0b00001111 };
+        byte[] bitset = new byte[]{(byte) 0b10101010, (byte) 0b00001111};
         List<Integer> result = BitsetUtil.bitsetToList(bitset);
         Assertions.assertEquals(
-            java.util.Arrays.asList(1, 3, 5, 7, 8, 9, 10, 11),
-            result
+                java.util.Arrays.asList(1, 3, 5, 7, 8, 9, 10, 11),
+                result
         );
     }
 
@@ -230,9 +189,9 @@ class BitsetUtilTest {
      */
     @Test
     void testBitsetToList_empty() {
-        byte[] bitset = new byte[] { 0, 0 };
-        java.util.List<Integer> result = BitsetUtil.bitsetToList(bitset);
-        org.junit.jupiter.api.Assertions.assertTrue(result.isEmpty());
+        byte[] bitset = new byte[]{0, 0};
+        List<Integer> result = BitsetUtil.bitsetToList(bitset);
+        Assertions.assertTrue(result.isEmpty());
     }
 
     /**
@@ -244,11 +203,37 @@ class BitsetUtilTest {
      */
     @Test
     void testBitsetToList_allSet() {
-        byte[] bitset = new byte[] { (byte)0xFF, (byte)0xFF };
-        java.util.List<Integer> result = BitsetUtil.bitsetToList(bitset);
-        org.junit.jupiter.api.Assertions.assertEquals(
-            java.util.Arrays.asList(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15),
-            result
+        byte[] bitset = new byte[]{(byte) 0xFF, (byte) 0xFF};
+        List<Integer> result = BitsetUtil.bitsetToList(bitset);
+        Assertions.assertEquals(
+                java.util.Arrays.asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
+                result
         );
-    }}
- 
+    }
+
+    @Test
+    void testBitsetToString_NullInput() {
+        assertEquals("", BitsetUtil.bitsetToString(null));
+    }
+
+    @Test
+    void testBitsetToString_EmptyArray() {
+        assertEquals("", BitsetUtil.bitsetToString(new byte[0]));
+    }
+
+    @Test
+    void testBitsetToString_SingleByte() {
+        // 0b01001101 = 77
+        byte[] input = {(byte) 0b01001101};
+        // Since the method iterates from last to first, and LSB to MSB, expected: "10110010 "
+        assertEquals("01001101", BitsetUtil.bitsetToString(input));
+    }
+
+    @Test
+    void testBitsetToString_MultiByte() {
+        // Two bytes: 0b00000001 (1), 0b00000010 (2)
+        byte[] input = {(byte) 0b00000001, (byte) 0b00000010};
+        assertEquals("00000010 00000001", BitsetUtil.bitsetToString(input));
+    }
+
+}

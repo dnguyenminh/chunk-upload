@@ -9,7 +9,7 @@ This project provides a resumable, chunked file upload system in Java (Spring Bo
 ## Directory Structure
 * Upload directories are configurable in `server/src/main/resources/application.properties`:
   - `chunkedupload.inprogress-dir`: Temporary storage for in-progress uploads (default: `uploads/in-progress`)
-  - `chunkedupload.complete-dir`: Final assembled files (default: `uploads/complete`), named as `<uploadId>_<originalFilename>`
+  - `chunkedupload.complete-dir`: Final assembled files (default: `uploads/complete`), named as `<originalFilename>`
 
 ## Logging
 - SLF4J logging is used throughout the project, with Logback as the backend.
@@ -154,18 +154,18 @@ curl -X POST http://localhost:8080/api/upload/init \
   -H "Content-Type: application/json" \
   -u "username:password" \
   -d '{
-    "filename": "myfile.txt",
-    "fileSize": 123456,
-    "checksum": "optional-sha256-hash"
+    "filename": "integration-test-file.txt",
+    "fileSize": 30,
+    "checksum": "c1a083071660f1832a863328ea7ead2388cb870f80be40dbba407cc3d1e5132a"
   }'
 ```
 
 **Request:**
 ```json
 {
-  "filename": "myfile.txt",
-  "fileSize": 123456,
-  "checksum": "optional-sha256-hash"
+  "filename": "integration-test-file.txt",
+  "fileSize": 30,
+  "checksum": "c1a083071660f1832a863328ea7ead2388cb870f80be40dbba407cc3d1e5132a"
 }
 ```
 
@@ -173,11 +173,11 @@ curl -X POST http://localhost:8080/api/upload/init \
 ```json
 {
   "uploadId": "unique-session-id",
-  "totalChunks": 10,
-  "chunkSize": 1048576,
-  "fileSize": 123456,
-  "filename": "myfile.txt",
-  "checksum": "server-computed-hash",
+  "totalChunks": 1,
+  "chunkSize": 524288,
+  "fileSize": 30,
+  "filename": "integration-test-file.txt",
+  "checksum": "c1a083071660f1832a863328ea7ead2388cb870f80be40dbba407cc3d1e5132a",
   "bitsetBytes": "base64-encoded-progress"
 }
 ```

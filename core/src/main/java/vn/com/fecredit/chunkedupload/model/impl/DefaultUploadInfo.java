@@ -1,8 +1,10 @@
-package vn.com.fecredit.chunkedupload.model;
+package vn.com.fecredit.chunkedupload.model.impl;
+
+import vn.com.fecredit.chunkedupload.model.interfaces.IUploadInfo;
 
 import java.time.LocalDateTime;
 
-public class UploadInfo implements IUploadInfo {
+public class DefaultUploadInfo implements IUploadInfo {
 
     //    private Long id;
     private String uploadId;

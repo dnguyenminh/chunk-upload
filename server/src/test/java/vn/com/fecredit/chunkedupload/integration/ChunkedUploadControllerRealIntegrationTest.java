@@ -123,7 +123,7 @@ public class ChunkedUploadControllerRealIntegrationTest {
 
         int defaultChunkSize = 524288;
         byte[] dummyChunk0 = new byte[defaultChunkSize];
-        for (int i = 0; i < defaultChunkSize; i++) dummyChunk0[i] = (byte) ('A' + i % 26);
+        for (int i = 0; i < defaultChunkSize; i++) dummyChunk0[i] = (byte) ('R' + i % 26);
         ByteArrayResource fileResource0 = new ByteArrayResource(dummyChunk0) {
             @Override
             public String getFilename() {
@@ -143,7 +143,7 @@ public class ChunkedUploadControllerRealIntegrationTest {
         params1.add("chunkNumber", "1");
 
         byte[] dummyChunk1 = new byte[800];
-        for (int i = 0; i < 800; i++) dummyChunk1[i] = (byte) ('a' + i % 26);
+        for (int i = 0; i < 800; i++) dummyChunk1[i] = (byte) ('R' + i % 26);
         org.springframework.core.io.ByteArrayResource fileResource1 = new org.springframework.core.io.ByteArrayResource(dummyChunk1) {
             @Override
             public String getFilename() {
@@ -367,7 +367,7 @@ public class ChunkedUploadControllerRealIntegrationTest {
         params1.add("totalChunks", "1");
         params1.add("fileSize", String.valueOf(Files.size(filePath1)));
         byte[] dummyChunk1 = new byte[(int) Files.size(filePath1)];
-        for (int i = 0; i < dummyChunk1.length; i++) dummyChunk1[i] = (byte) ('A' + i % 26);
+        for (int i = 0; i < dummyChunk1.length; i++) dummyChunk1[i] = (byte) ('R' + i % 26);
         org.springframework.core.io.ByteArrayResource fileResource1 = new org.springframework.core.io.ByteArrayResource(dummyChunk1) {
             @Override
             public String getFilename() {
@@ -388,7 +388,7 @@ public class ChunkedUploadControllerRealIntegrationTest {
         params2.add("totalChunks", "1");
         params2.add("fileSize", String.valueOf(Files.size(filePath2)));
         byte[] dummyChunk2 = new byte[(int) Files.size(filePath2)];
-        for (int i = 0; i < dummyChunk2.length; i++) dummyChunk2[i] = (byte) ('a' + i % 26);
+        for (int i = 0; i < dummyChunk2.length; i++) dummyChunk2[i] = (byte) ('R' + i % 26);
         org.springframework.core.io.ByteArrayResource fileResource2 = new org.springframework.core.io.ByteArrayResource(dummyChunk2) {
             @Override
             public String getFilename() {

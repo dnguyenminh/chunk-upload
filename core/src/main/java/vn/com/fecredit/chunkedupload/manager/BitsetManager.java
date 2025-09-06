@@ -1,8 +1,8 @@
 package vn.com.fecredit.chunkedupload.manager;
 
-import vn.com.fecredit.chunkedupload.service.ChunkedUploadService.Header;
+import vn.com.fecredit.chunkedupload.model.Header;
+import vn.com.fecredit.chunkedupload.model.util.BitsetUtil;
 
-import java.nio.file.Path;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -39,23 +39,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class BitsetManager {
     /**
-     * In-memory cache for upload bitsets.
-     * The key is the string representation of the partial file's path
-     * ({@link Path#toString()}),
-     * and the value is the byte array representing the bitset.
-     */
-    private final ConcurrentHashMap<String, byte[]> bitsets = new ConcurrentHashMap<>();
-
-    /**
      * Marks a chunk as received and checks if the entire file upload is complete.
      * Thread-safe. Computes the bitset if absent, sets the bit for the received
      * chunk, and checks if all chunks are present.
-     * 
-     * @param partPath    The path to the partial file being assembled.
+     *
      * @param chunkNumber The 0-based index of the chunk that was just uploaded.
      * @param header      The header of the upload file, containing metadata like total chunks.
      * @return {@code true} if all chunks have been uploaded, {@code false}
-     *         otherwise.
+     * otherwise.
      *
      * <p>
      * Implementation details:
@@ -66,17 +57,8 @@ public class BitsetManager {
      * <li>Returns true only when all chunks are present</li>
      * </ul>
      */
-    public boolean markChunkAndCheckComplete(Path partPath, int chunkNumber, Header header) {
-        int totalChunks = header.totalChunks;
-        byte[] bitset = bitsets.computeIfAbsent(partPath.toString(), k -> new byte[(totalChunks + 7) / 8]);
-        // Set the bit for the received chunk
-        bitset[chunkNumber / 8] |= (byte) (1 << (chunkNumber % 8));
-        // Check if all bits are set
-        for (int i = 0; i < totalChunks; i++) {
-            if ((bitset[i / 8] & (1 << (i % 8))) == 0) {
-                return false; // Found a missing chunk
-            }
-        }
-        return true; // All chunks are present
+    public static boolean markChunkAndCheckComplete(Header header, int chunkNumber) {
+        BitsetUtil.setUsedBit(header.bitset, chunkNumber);
+        return BitsetUtil.isUsedBitSetFull(header.bitset);
     }
 }
