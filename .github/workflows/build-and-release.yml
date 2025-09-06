@@ -101,13 +101,19 @@ jobs:
           asset_name: client.zip
           asset_content_type: application/zip
 
+      - name: Get Model JAR Path
+        id: get_model_jar_path
+        run: |
+          echo "path=$(ls model/build/libs/*.jar | head -n 1)" >> $GITHUB_OUTPUT
+          echo "Model JAR path: $(ls model/build/libs/*.jar | head -n 1)"
+
       - name: Upload model.jar
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: model/build/libs/model-*.jar
+          asset_path: ${{ steps.get_model_jar_path.outputs.path }}
           asset_name: model.jar
           asset_content_type: application/java-archive
 
@@ -116,7 +122,6 @@ jobs:
         run: |
           echo "path=$(ls server/build/libs/*.jar | head -n 1)" >> $GITHUB_OUTPUT
           echo "Server JAR path: $(ls server/build/libs/*.jar | head -n 1)"
-          echo "path=$(ls server/build/libs/*.jar | head -n 1)" > $GITHUB_OUTPUT
 
       - name: Upload Server JAR
         uses: actions/upload-release-asset@v1
@@ -133,7 +138,6 @@ jobs:
         run: |
           echo "path=$(ls client/build/libs/*.jar | head -n 1)" >> $GITHUB_OUTPUT
           echo "Client JAR path: $(ls client/build/libs/*.jar | head -n 1)"
-          echo "path=$(ls client/build/libs/*.jar | head -n 1)" > $GITHUB_OUTPUT
 
       - name: Upload Client JAR
         uses: actions/upload-release-asset@v1
