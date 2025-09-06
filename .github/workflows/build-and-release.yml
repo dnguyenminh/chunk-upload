@@ -33,13 +33,14 @@ jobs:
       - name: Prepare client release zip
         run: |
           mkdir -p client-release/libs
+          mkdir -p client-release/build/libs
           mkdir -p client-release/build
           cp client/dependencies/download-dependencies.bat client-release/libs/
           cp client/dependencies/download-dependencies.sh client-release/libs/
           cp model/build/libs/model.jar client-release/libs/
           cp client/run-client.bat client-release/
           cp client/run-client.sh client-release/
-          cp client/build/libs/client.jar client-release/build/
+          cp client/build/libs/client.jar client-release/build/libs/
           cd client-release
           zip -r ../client.zip .
         shell: bash

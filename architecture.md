@@ -92,3 +92,32 @@ When a chunk is received, it is written directly to its calculated offset in the
   - Thread-safe managers using `ConcurrentHashMap`
   - Atomic operations for state updates
   - Clear ownership boundaries for shared resources
+
+## Security Architecture
+
+### Authentication & Authorization
+- HTTP Basic Authentication with Spring Security
+- BCrypt password hashing with salt
+- Delegating password encoder supporting multiple hash formats
+- Database-backed user details service
+- Tenant-based access control
+
+### Database Schema
+- **Tenants Table**:
+  - `id`: Primary key (auto-generated)
+  - `tenant_id`: Unique business identifier
+  - `username`: Unique login name
+  - `password`: BCrypt hashed password (with {bcrypt} prefix)
+
+### File Access Control
+- Each file upload is associated with a tenant
+- Files are stored in tenant-specific directories
+- Cross-tenant access is prevented
+- Upload sessions are tenant-scoped
+
+### Security Best Practices
+- Automatic password hashing
+- No plaintext password storage
+- Secure session management
+- Resource isolation between tenants
+- Input validation and sanitization

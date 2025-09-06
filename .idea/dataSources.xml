@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="chunkedupload [2]" uuid="b4ae49cd-efc2-4b7b-b931-7306e5d6da45">
+    <data-source source="LOCAL" name="chunkedupload" uuid="77f1560a-4ca4-41e3-8509-af49e6044b33">
       <driver-ref>h2.unified</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.h2.Driver</jdbc-driver>
-      <jdbc-url>jdbc:h2:$PROJECT_DIR$/client/data/chunkedupload</jdbc-url>
+      <jdbc-url>jdbc:h2:$PROJECT_DIR$/server/data/chunkedupload</jdbc-url>
       <jdbc-additional-properties>
         <property name="com.intellij.clouds.kubernetes.db.host.port" />
         <property name="com.intellij.clouds.kubernetes.db.enabled" value="false" />

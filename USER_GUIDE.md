@@ -43,6 +43,21 @@ See `.github/workflows/build-and-release.yml` for packaging details.
 
 ## Usage Guide
 
+### Initial Server Setup
+
+1. **Create a User Account**
+   Before using the API, you must create a user account. Use the provided script:
+   ```bash
+   # Windows
+   cd server
+   create-user.bat myTenant myUsername myPassword
+
+   # Linux/Mac
+   cd server
+   ./create-user.sh myTenant myUsername myPassword
+   ```
+   This creates a new user with the specified credentials in the database.
+
 ### Client Setup and Configuration
 
 1. **Basic Usage**
@@ -87,12 +102,63 @@ try {
 }
 ```
 
+### Authentication
+
+The server uses HTTP Basic Authentication with BCrypt password hashing. All API requests must include an `Authorization` header with valid credentials.
+
+**Important Notes:**
+1. Passwords are stored using BCrypt encoding with a '{bcrypt}' prefix
+2. The server uses H2 database to store user credentials in the `tenants` table
+3. Always send the plain password in requests - the server handles encryption
+
+Example Authentication:
+```bash
+# Using the -u option (recommended)
+curl -u "username:password" ...
+
+# Or manually with base64 encoding
+curl -H "Authorization: Basic $(echo -n 'username:password' | base64)" ...
+```
+
+**Database Details:**
+- File location: `./data/chunkedupload.mv.db`
+- Tables are automatically created on first run
+- Test users can be loaded from `server/src/test/resources/test-users.sql`
+
+**Default Test Account:**
+```
+Username: user
+Password: password
+Tenant ID: testTenant
+```
+
+For production use, create new accounts using the create-user script:
+```bash
+# Windows
+create-user.bat <tenantId> <username> <password>
+
+# Linux/Mac
+./create-user.sh <tenantId> <username> <password>
+```
+
 ### API Reference
 
 #### 1. Upload Initialization
 `POST /api/upload/init`
 
 Starts a new upload session.
+
+**Curl Example:**
+```bash
+curl -X POST http://localhost:8080/api/upload/init \
+  -H "Content-Type: application/json" \
+  -u "username:password" \
+  -d '{
+    "filename": "myfile.txt",
+    "fileSize": 123456,
+    "checksum": "optional-sha256-hash"
+  }'
+```
 
 **Request:**
 ```json
@@ -127,6 +193,15 @@ Starts a new upload session.
 
 Uploads a single chunk using multipart/form-data.
 
+**Curl Example:**
+```bash
+curl -X POST http://localhost:8080/api/upload/chunk \
+  -u "username:password" \
+  -F "uploadId=your-upload-id" \
+  -F "chunkNumber=0" \
+  -F "file=@chunk_data.bin"
+```
+
 **Request Fields:**
 - uploadId (form field): Session identifier
 - chunkNumber (form field): Zero-based chunk index
@@ -142,6 +217,12 @@ Uploads a single chunk using multipart/form-data.
 `GET /api/upload/status/{uploadId}`
 
 Retrieves current upload status.
+
+**Curl Example:**
+```bash
+curl http://localhost:8080/api/upload/status/your-upload-id \
+  -u "username:password"
+```
 
 **Response:**
 ```json

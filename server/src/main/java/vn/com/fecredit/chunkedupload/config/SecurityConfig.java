@@ -58,9 +58,12 @@ public class SecurityConfig {
     @Bean
     public UserDetailsService userDetailsService(TenantAccountRepository tenantAccountRepository) {
         return username -> {
-            System.out.println("[DEBUG] Attempting to load user: " + username);
+            System.out.println("[DEBUG] Authentication attempt - Username: " + username);
             return tenantAccountRepository.findByUsername(username).map(account -> {
-                System.out.println("[DEBUG] Loaded user: " + account.getUsername() + ", password hash: " + account.getPassword());
+                System.out.println("[DEBUG] Found user in database:" +
+                    "\n  Username: " + account.getUsername() +
+                    "\n  Password hash: " + account.getPassword() +
+                    "\n  Tenant ID: " + account.getTenantId());
                 return org.springframework.security.core.userdetails.User.withUsername(account.getUsername()).password(account.getPassword()).roles("USER").build();
             }).orElseThrow(() -> new org.springframework.security.core.userdetails.UsernameNotFoundException("User not found: " + username));
         };
@@ -75,7 +78,10 @@ public class SecurityConfig {
         java.util.Map<String, org.springframework.security.crypto.password.PasswordEncoder> encoders = new java.util.HashMap<>();
         encoders.put("bcrypt", new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder());
         org.springframework.security.crypto.password.PasswordEncoder delegating = new org.springframework.security.crypto.password.DelegatingPasswordEncoder("bcrypt", encoders);
-        System.out.println("[DEBUG] Using DelegatingPasswordEncoder: " + delegating.getClass().getSimpleName());
+        System.out.println("[DEBUG] Configured PasswordEncoder:" +
+            "\n  Type: " + delegating.getClass().getSimpleName() +
+            "\n  Default scheme: bcrypt" +
+            "\n  Supported prefixes: " + encoders.keySet());
         return delegating;
     }
 }
