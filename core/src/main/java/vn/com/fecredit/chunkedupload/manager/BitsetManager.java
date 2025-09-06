@@ -1,6 +1,5 @@
 package vn.com.fecredit.chunkedupload.manager;
 
-import org.springframework.stereotype.Component;
 import vn.com.fecredit.chunkedupload.service.ChunkedUploadService.Header;
 
 import java.nio.file.Path;
@@ -38,7 +37,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * }
  * </pre>
  */
-@Component
 public class BitsetManager {
     /**
      * In-memory cache for upload bitsets.
