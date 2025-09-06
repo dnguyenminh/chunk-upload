@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 # Download all runtime dependencies
 curl -L -o spring-boot-3.5.5.jar https://repo1.maven.org/maven2/org/springframework/boot/spring-boot/3.5.5/spring-boot-3.5.5.jar
 curl -L -o spring-boot-starter-3.5.5.jar https://repo1.maven.org/maven2/org/springframework/boot/spring-boot-starter/3.5.5/spring-boot-starter-3.5.5.jar

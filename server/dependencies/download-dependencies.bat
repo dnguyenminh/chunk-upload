@@ -1,7 +1,3 @@
-REM Diagnostic: List all jars in libs before running the app
-echo ==== JARs in libs ====
-dir libs\*.jar /b
-echo ======================
 @echo off
 setlocal
 
@@ -26,19 +22,6 @@ curl -L -o spring-tx-6.2.10.jar https://repo1.maven.org/maven2/org/springframewo
 curl -L -o spring-orm-6.2.10.jar https://repo1.maven.org/maven2/org/springframework/spring-orm/6.2.10/spring-orm-6.2.10.jar
 curl -L -o spring-jdbc-6.2.10.jar https://repo1.maven.org/maven2/org/springframework/spring-jdbc/6.2.10/spring-jdbc-6.2.10.jar
 curl -L -o spring-aspects-6.2.10.jar https://repo1.maven.org/maven2/org/springframework/spring-aspects/6.2.10/spring-aspects-6.2.10.jar
-
-REM REMOVE ALL OLDER SPRING JARS
-del libs\spring-boot-starter-data-jpa-3.2.6.jar 2>nul
-del libs\spring-boot-starter-security-3.2.6.jar 2>nul
-del libs\spring-boot-starter-web-3.2.6.jar 2>nul
-del libs\spring-core-6.0.12.jar 2>nul
-del libs\spring-context-6.0.12.jar 2>nul
-del libs\spring-aop-6.0.12.jar 2>nul
-del libs\spring-security-core-6.2.2.jar 2>nul
-del libs\spring-security-config-6.2.2.jar 2>nul
-del libs\spring-security-crypto-6.2.2.jar 2>nul
-del libs\spring-security-web-6.2.2.jar 2>nul
-del libs\spring-data-jpa-3.2.6.jar 2>nul
 
 REM Security
 curl -L -o spring-security-core-6.5.3.jar https://repo1.maven.org/maven2/org/springframework/security/spring-security-core/6.5.3/spring-security-core-6.5.3.jar
