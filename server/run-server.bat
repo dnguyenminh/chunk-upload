@@ -69,9 +69,32 @@ shift /1
 goto parse_args
 
 :after_parse
-set "JAR_PATH=build\libs\server.jar"
-if not exist "!JAR_PATH!" (
-    echo Error: Server JAR not found at !JAR_PATH!
+REM Find the server JAR file (with or without version)
+set "JAR_PATH="
+if exist "build\libs\server-*.jar" (
+    REM Use the first versioned JAR found
+    for %%f in ("build\libs\server-*.jar") do (
+        set "JAR_PATH=%%f"
+        goto jar_found
+    )
+)
+if not defined JAR_PATH (
+    if exist "build\libs\server.jar" (
+        REM Fallback to plain server.jar
+        set "JAR_PATH=build\libs\server.jar"
+        goto jar_found
+    )
+)
+if not defined JAR_PATH (
+    if exist "build\libs\server-plain.jar" (
+        REM Fallback to server-plain.jar
+        set "JAR_PATH=build\libs\server-plain.jar"
+        goto jar_found
+    )
+)
+:jar_found
+if not defined JAR_PATH (
+    echo Error: Server JAR not found in build\libs\
     echo Please build the project first by running '..\gradlew.bat build'
     exit /b 1
 )

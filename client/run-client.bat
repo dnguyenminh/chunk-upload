@@ -44,10 +44,25 @@ if defined missing (
     goto :show_help
 )
 
-REM Check JAR existence
-set "JAR_PATH=build\libs\client.jar"
-if not exist "%JAR_PATH%" (
-    echo Error: Client JAR not found at %JAR_PATH%
+REM Find the client JAR file (with or without version)
+set "JAR_PATH="
+if exist "build\libs\client-*.jar" (
+    REM Use the first versioned JAR found
+    for %%f in ("build\libs\client-*.jar") do (
+        set "JAR_PATH=%%f"
+        goto client_jar_found
+    )
+)
+if not defined JAR_PATH (
+    if exist "build\libs\client.jar" (
+        REM Fallback to plain client.jar
+        set "JAR_PATH=build\libs\client.jar"
+        goto client_jar_found
+    )
+)
+:client_jar_found
+if not defined JAR_PATH (
+    echo Error: Client JAR not found in build\libs\
     echo Please build the project first by running '..\gradlew.bat build'
     exit /b 1
 )

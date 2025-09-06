@@ -6,6 +6,8 @@ application {
     mainClass = 'vn.com.fecredit.chunkedupload.client.ClientApp'
 }
 
+group = 'vn.com.fecredit.chunkedupload'
+
 dependencies {
     implementation project(':model')
     implementation 'com.fasterxml.jackson.core:jackson-databind'

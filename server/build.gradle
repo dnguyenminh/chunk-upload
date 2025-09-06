@@ -18,15 +18,17 @@ repositories {
 
 // Force predictable artifact names that match run scripts
 bootJar {
-    archiveFileName = 'server.jar'
+    archiveFileName = "server-${project.version}.jar"
     // Do not include dependencies in the server.jar
     mainClass = 'vn.com.fecredit.chunkedupload.UploadApplication'
     // Only include compiled classes and resources
     with jar
 }
 jar {
-    archiveFileName = 'server-plain.jar'
+    archiveFileName = "server-plain-${project.version}.jar"
 }
+
+group = 'vn.com.fecredit.chunkedupload'
 
 dependencies {
     implementation project(':model')

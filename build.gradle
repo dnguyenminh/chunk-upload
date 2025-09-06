@@ -5,13 +5,14 @@ plugins {
 }
 
 group = 'vn.com.fecredit.chunkedupload'
-version = '1.0-SNAPSHOT'
+version = '1.2.0'
 
 repositories {
     mavenCentral()
 }
 
 subprojects {
+    version = rootProject.version  // Explicitly inherit version from parent
     apply plugin: 'java'
     apply plugin: 'io.spring.dependency-management'
 

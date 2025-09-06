@@ -72,10 +72,30 @@ fi
 
 # Resolve directory of this script to make paths robust regardless of CWD
 DIR="$(cd "$(dirname "$0")" && pwd)"
-# Prefer server.jar if present
-JAR="$DIR/build/libs/server.jar"
+
+# Find the server JAR file (with or without version)
+JAR=""
+# First try to find versioned JAR files
+for jar_file in "$DIR/build/libs/server-"*.jar; do
+    if [ -f "$jar_file" ]; then
+        JAR="$jar_file"
+        break
+    fi
+done
+
+# Fallback to non-versioned JAR if no versioned JAR found
+if [ -z "$JAR" ]; then
+    if [ -f "$DIR/build/libs/server.jar" ]; then
+        JAR="$DIR/build/libs/server.jar"
+    elif [ -f "$DIR/build/libs/server-plain.jar" ]; then
+        JAR="$DIR/build/libs/server-plain.jar"
+    fi
+fi
+
 if [ ! -f "$JAR" ]; then
-  JAR="$DIR/build/libs/server-plain.jar"
+    echo "Error: Server JAR not found in $DIR/build/libs/"
+    echo "Please build the project first by running './gradlew build'"
+    exit 1
 fi
 
 CLASSPATH="$JAR:libs/*"
