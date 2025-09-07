@@ -48,7 +48,7 @@ jobs:
       - name: Prepare server release zip
         run: |
           mkdir -p server-release/libs
-          mkdir -p server-release/build
+          mkdir -p server-release/build/libs
           cp server/dependencies/download-dependencies.bat server-release/libs/
           cp server/dependencies/download-dependencies.sh server-release/libs/
           cp model/build/libs/model-*.jar server-release/libs/
