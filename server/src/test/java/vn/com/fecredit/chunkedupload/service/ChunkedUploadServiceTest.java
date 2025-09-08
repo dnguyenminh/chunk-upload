@@ -5,7 +5,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.jpa.repository.JpaRepository;
 import vn.com.fecredit.chunkedupload.model.*;
+import vn.com.fecredit.chunkedupload.port.intefaces.IUploadInfoPort;
+
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -180,7 +183,7 @@ public class ChunkedUploadServiceTest {
 
         // Then
         verify(uploadInfoRepository).findByUploadId("test-upload-123");
-        verify(uploadInfoRepository).save(testUploadInfo);
+        verify((IUploadInfoPort) uploadInfoRepository).save(testUploadInfo);
 
         // Verify lastUpdateDateTime was updated
         assertTrue(testUploadInfo.getLastUpdateDateTime().isAfter(beforeUpdate));
@@ -197,7 +200,7 @@ public class ChunkedUploadServiceTest {
 
         // Then
         verify(uploadInfoRepository).findByUploadId("nonexistent");
-        verify(uploadInfoRepository, never()).save(any(UploadInfo.class));
+        verify((JpaRepository)uploadInfoRepository, never()).save(any(UploadInfo.class));
     }
 
     @Test
@@ -206,14 +209,14 @@ public class ChunkedUploadServiceTest {
         when(uploadInfoRepository.findByUploadId("test-upload-123"))
             .thenReturn(Optional.of(testUploadInfo));
 
-        doThrow(new RuntimeException("Save failed")).when(uploadInfoRepository).save(testUploadInfo);
+        doThrow(new RuntimeException("Save failed")).when((JpaRepository)uploadInfoRepository).save(testUploadInfo);
 
         // When
         chunkedUploadService.updateUploadInfoLastUpdateTime("test-upload-123");
 
         // Then
         verify(uploadInfoRepository).findByUploadId("test-upload-123");
-        verify(uploadInfoRepository).save(testUploadInfo);
+        verify((JpaRepository)uploadInfoRepository).save(testUploadInfo);
         // Should not throw exception - error is logged but not propagated
     }
 
