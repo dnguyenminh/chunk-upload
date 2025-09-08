@@ -1,6 +1,5 @@
 package vn.com.fecredit.chunkedupload.port.impl;
 
-import vn.com.fecredit.chunkedupload.model.impl.DeafultTenantAccount;
 import vn.com.fecredit.chunkedupload.model.impl.DefaultUploadInfo;
 import vn.com.fecredit.chunkedupload.model.interfaces.ITenantAccount;
 import vn.com.fecredit.chunkedupload.model.interfaces.IUploadInfo;
@@ -15,10 +14,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class DefaultIUploadInfoPort implements IUploadInfoPort<DefaultUploadInfo> {
 
     private final Map<String, DefaultUploadInfo> uploadIdMap = new ConcurrentHashMap<>();
-    private final Map<String, Map<String, DefaultUploadInfo>> tenantUploadMap = new ConcurrentHashMap<>();
+    // Removed unused tenantUploadMap field
 
     @Override
-    public DefaultUploadInfo save(DefaultUploadInfo uploadInfo) {
+    public <S extends DefaultUploadInfo> S save(S uploadInfo) {
+        System.out.println("[DefaultIUploadInfoPort] save called with uploadId=" +
+            (uploadInfo != null ? uploadInfo.getUploadId() : "null"));
         if (uploadInfo == null || uploadInfo.getUploadId() == null) {
             throw new IllegalArgumentException("UploadInfo or uploadId cannot be null");
         }
@@ -29,7 +30,10 @@ public class DefaultIUploadInfoPort implements IUploadInfoPort<DefaultUploadInfo
 
     @Override
     public Optional<DefaultUploadInfo> findByUploadId(String uploadId) {
-        return Optional.ofNullable(uploadIdMap.get(uploadId));
+        DefaultUploadInfo found = uploadIdMap.get(uploadId);
+        System.out.println("[DefaultIUploadInfoPort] findByUploadId called with uploadId=" + uploadId +
+            ", found=" + (found != null));
+        return Optional.ofNullable(found);
     }
 
     @Override

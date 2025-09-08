@@ -31,26 +31,28 @@ class DefaultChunkedUploadIntegratingTest {
 
     private DefaultIUploadInfoPort uploadInfoPort;
     private DefaultITenantAccountPort tenantAccountPort;
-    private DefaultChunkedUpload chunkedUpload;
+    private InMemoryChunkedUpload chunkedUpload;
     private Path inProgressDir;
     private Path completeDir;
     private final int CHUNK_SIZE = 1024; // 1 KB for testing
 
     @BeforeEach
     void setUp() throws IOException {
+        // ...existing setup for uploadInfoPort, tenantAccountPort, inProgressDir, completeDir...
         uploadInfoPort = new DefaultIUploadInfoPort();
         tenantAccountPort = new DefaultITenantAccountPort();
 
         inProgressDir = Files.createTempDirectory("inprogress-e2e");
         completeDir = Files.createTempDirectory("complete-e2e");
 
-        chunkedUpload = new DefaultChunkedUpload(
+        chunkedUpload = new InMemoryChunkedUpload(
                 uploadInfoPort,
                 tenantAccountPort,
                 inProgressDir.toString(),
                 completeDir.toString(),
                 CHUNK_SIZE
         );
+        chunkedUpload.setUploadInfoPort(uploadInfoPort);
     }
 
     @Test

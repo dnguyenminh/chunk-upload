@@ -31,6 +31,10 @@ import java.time.LocalDateTime;
 @Data
 public class UploadInfo implements IUploadInfo {
 
+    public static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
+    public static final String STATUS_COMPLETED = "COMPLETED";
+    public static final String STATUS_TIMED_OUT = "TIMED_OUT";
+
     /**
      * Auto-generated primary key.
      */
@@ -65,6 +69,20 @@ public class UploadInfo implements IUploadInfo {
      */
     @Column(nullable = false)
     private LocalDateTime uploadDateTime;
+
+    /**
+     * Timestamp of the last update to this upload.
+     * Used for session timeout detection.
+     */
+    @Column(nullable = false)
+    private LocalDateTime lastUpdateDateTime;
+
+    /**
+     * Status of the upload session.
+     * Values: IN_PROGRESS, COMPLETED, TIMED_OUT
+     */
+    @Column(nullable = false)
+    private String status;
 
     /**
      * The tenant who owns this upload.

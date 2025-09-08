@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -180,7 +181,8 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
         Y uploadInfo = createUploadInfo(username, uploadId, header, fileName, checksum);
         try {
             log.debug("Saving upload info to file:" + uploadInfo.getClass().getName());
-            this.iUploadInfoPort.save(uploadInfo);
+            // Use abstract save method to avoid interface conflicts
+            saveUploadInfo(uploadInfo);
             log.debug("File upload info saved to file:" + uploadInfo.getClass().getName());
         } catch (Exception e) {
             log.debug("Could not save upload info to file: {}", e.getMessage());
@@ -190,6 +192,56 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
     }
 
     abstract protected Y createUploadInfo(String username, String uploadId, Header header, String fileName, String checksum) throws Throwable;
+
+    /**
+     * Abstract method to save upload info.
+     * Concrete implementations should provide the specific save logic.
+     *
+     * @param uploadInfo The upload info to save
+     * @return The saved upload info
+     */
+    abstract protected Y saveUploadInfo(Y uploadInfo);
+
+    /**
+     * Update the lastUpdateDateTime for the upload session.
+     * This method should be implemented by concrete classes to update the database.
+     *
+     * @param uploadId The upload ID to update
+     */
+    public void updateUploadInfoLastUpdateTime(String uploadId) {
+        try {
+            iUploadInfoPort.findByUploadId(uploadId).ifPresent(info -> {
+                try {
+                    Y uploadInfo = (Y) info;
+                    // Update lastUpdateDateTime - concrete implementation should handle this
+                    updateLastUpdateDateTime(uploadInfo);
+                    // Use the abstract save method to avoid interface conflicts
+                    saveUploadInfo(uploadInfo);
+                    log.debug("Updated lastUpdateDateTime for uploadId={}", uploadId);
+                } catch (Exception e) {
+                    log.warn("Failed to update lastUpdateDateTime for uploadId={}: {}", uploadId, e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            log.warn("Error updating upload info last update time for uploadId={}: {}", uploadId, e.getMessage());
+        }
+    }
+
+    /**
+     * Abstract method to update the lastUpdateDateTime field.
+     * Concrete implementations should provide the specific logic for their entity type.
+     * 
+     * @param uploadInfo The upload info entity to update
+     */
+    protected abstract void updateLastUpdateDateTime(Y uploadInfo);
+
+    /**
+     * Abstract method to move completed upload to history.
+     * Concrete implementations should provide the specific logic for their entity and history types.
+     * 
+     * @param uploadInfo The completed upload info to move to history
+     */
+    protected abstract void moveToHistory(Y uploadInfo);
 
     public void writeChunk(String username, String uploadId, int chunkNumber, byte[] data) throws Throwable {
         Path partPath = getPartPath(username, uploadId);
@@ -215,6 +267,9 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
 
                     boolean isCompleted = BitsetManager.markChunkAndCheckComplete(header, chunkNumber);
                     writeHeader(ch, header);
+
+                    // Update lastUpdateDateTime in database
+                    updateUploadInfoLastUpdateTime(uploadId);
 
                     // preserve header and assembly decision after channel/lock are closed
                     if (isCompleted) {
@@ -303,8 +358,16 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
                         log.error("Checksum mismatch for uploadId={}: expected={}, actual={}", uploadId, expectedChecksum, actualChecksum);
                         throw new IOException("Checksum mismatch after file assembly");
                     }
-                    iUploadInfoPort.delete((Y) info);
+                    
+                    // Move upload to history with COMPLETED status
+                    Y uploadInfo = (Y) info;
+                    moveToHistory(uploadInfo);
+                    
+                    // Delete the original upload info and part file
+                    iUploadInfoPort.delete(uploadInfo);
                     Files.deleteIfExists(partPath);
+                    
+                    log.debug("Successfully moved uploadId={} to history and cleaned up files", uploadId);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

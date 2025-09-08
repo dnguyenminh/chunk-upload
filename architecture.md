@@ -1,5 +1,15 @@
 # Architecture Design
 
+## 🚀 Latest Release: v1.3.0
+
+**Enhanced Scripts & Cross-Platform Support**
+- ✅ Advanced argument parsing with `--key=value` format support
+- ✅ Cross-platform compatibility (Windows .bat + Linux .sh)
+- ✅ Debug output for troubleshooting
+- ✅ Robust error handling and validation
+- ✅ Smart JAR file detection and execution
+- ✅ Automated GitHub Actions workflow with release packaging
+
 ## High-Level Architecture
 
 The project is designed with a modular architecture, separating concerns into three distinct Gradle modules:
@@ -18,6 +28,55 @@ The project is configured as a multi-module Gradle build. The root `build.gradle
 - **Logging**: SLF4J logging is used throughout, with Logback as the backend. Logback configuration is in [`server/src/main/resources/logback.xml`](server/src/main/resources/logback.xml:1). Logback now uses a rolling file appender with daily log rotation (`logs/server.%d{yyyy-MM-dd}.log`, 30 days history). Logback dependencies are managed by Spring Boot; do not declare explicit Logback versions in Gradle.
 
 This setup ensures a clean, maintainable, and consistent build process across the entire project.
+
+## Test Architecture
+
+- Integration and core tests use an in-memory persistence implementation (`InMemoryChunkedUpload`) to ensure reliable, isolated, and fast test execution.
+- This design enables deterministic tests that do not depend on external databases or file systems, improving CI reliability and developer productivity.
+
+## Enhanced Scripts Architecture (v1.3.0)
+
+The v1.3.0 release introduces significantly enhanced client and server scripts with advanced features:
+
+### Script Architecture Features
+- **Cross-Platform Compatibility**: Unified logic across Windows (.bat) and Linux (.sh) scripts
+- **Advanced Argument Parsing**: Support for both `--key=value` and `--key value` formats
+- **Debug Output**: Comprehensive logging for troubleshooting argument parsing
+- **Smart JAR Detection**: Automatic detection and prioritization of executable JARs
+- **Robust Error Handling**: Clear error messages and validation
+- **Path Resolution**: Scripts work from any directory location
+
+### Script Components
+
+#### Client Script (`run-client.bat` / `run-client.sh`)
+- **Argument Processing**: Parses `--filePath`, `--uploadUrl`, `--username`, `--password`, etc.
+- **Validation Logic**: Ensures all required arguments are provided
+- **JAR Discovery**: Finds and executes `client-*.jar` files
+- **Debug Output**: Shows parsing steps for troubleshooting
+- **Error Recovery**: Graceful handling of missing JARs or invalid arguments
+
+#### Server Script (`run-server.bat` / `run-server.sh`)
+- **Argument Processing**: Parses `--server.port`, `--chunkedupload.chunk-size`, etc.
+- **JAR Selection**: Prioritizes executable JARs over plain JARs
+- **Path Resolution**: Works from any directory using relative paths
+- **Debug Output**: Shows JAR selection and execution steps
+- **Fallback Logic**: Handles missing JARs gracefully
+
+### Script Execution Flow
+
+1. **Argument Parsing**: Process command-line arguments with debug output
+2. **Validation**: Check for required arguments and show clear error messages
+3. **JAR Discovery**: Find appropriate JAR files in `build/libs/` directory
+4. **Execution**: Run JAR with parsed arguments and show execution command
+5. **Error Handling**: Provide helpful error messages for common issues
+
+### Benefits of Enhanced Scripts
+
+- **Developer Experience**: Debug output helps troubleshoot configuration issues
+- **Cross-Platform**: Same functionality on Windows and Linux
+- **Robustness**: Better error handling and validation
+- **Maintainability**: Unified logic across platforms
+- **User-Friendly**: Clear error messages and usage instructions
 
 ## Release Packaging & Artifacts
 

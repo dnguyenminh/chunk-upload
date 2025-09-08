@@ -6,10 +6,12 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EntityScan("vn.com.fecredit.chunkedupload.model")
 @EnableJpaRepositories("vn.com.fecredit.chunkedupload.model")
+@EnableScheduling
 public class UploadApplication {
     private static final Logger log = LoggerFactory.getLogger(UploadApplication.class);
 

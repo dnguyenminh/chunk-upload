@@ -18,7 +18,7 @@ class DefaultChunkedUploadTest {
 
     private DefaultIUploadInfoPort uploadInfoPort;
     private DefaultITenantAccountPort tenantAccountPort;
-    private DefaultChunkedUpload chunkedUpload;
+    private InMemoryChunkedUpload chunkedUpload;
     private Path inProgressDir;
     private Path completeDir;
 
@@ -28,13 +28,14 @@ class DefaultChunkedUploadTest {
         tenantAccountPort = new DefaultITenantAccountPort();
         inProgressDir = Files.createTempDirectory("inprogress");
         completeDir = Files.createTempDirectory("complete");
-        chunkedUpload = new DefaultChunkedUpload(
+        chunkedUpload = new InMemoryChunkedUpload(
                 uploadInfoPort,
                 tenantAccountPort,
                 inProgressDir.toString(),
                 completeDir.toString(),
                 1024
         );
+        chunkedUpload.setUploadInfoPort(uploadInfoPort); // ensure synchronization
     }
 
     @Test
@@ -51,10 +52,12 @@ class DefaultChunkedUploadTest {
 
         // Register file for upload
         // Correct parameter order: username, uploadId, fileName, fileSize, checksum
+        System.out.println("[DefaultChunkedUploadTest] Registering file: username=" + username + ", uploadId=" + uploadId + ", filename=" + filename);
         chunkedUpload.registerUploadingFile(username, uploadId, filename, 1024L, checksum);
 
         // There is no direct public API to get part/final path, but we can check that the upload info is stored
         DefaultUploadInfo info = uploadInfoPort.findByUploadId(uploadId).orElse(null);
+        System.out.println("[DefaultChunkedUploadTest] Retrieved info for uploadId=" + uploadId + ": " + (info != null ? "found" : "not found"));
         assertNotNull(info);
         assertEquals(uploadId, info.getUploadId());
         assertEquals(filename, info.getFilename());

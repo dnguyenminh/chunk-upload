@@ -1,7 +1,5 @@
 package vn.com.fecredit.chunkedupload.port.intefaces;
 
-import vn.com.fecredit.chunkedupload.model.impl.DeafultTenantAccount;
-import vn.com.fecredit.chunkedupload.model.impl.DefaultUploadInfo;
 import vn.com.fecredit.chunkedupload.model.interfaces.ITenantAccount;
 import vn.com.fecredit.chunkedupload.model.interfaces.IUploadInfo;
 
@@ -20,7 +18,7 @@ public interface IUploadInfoPort<T extends IUploadInfo> {
      * @param uploadInfo The UploadInfo object to save.
      * @return The saved UploadInfo object.
      */
-    T save(T uploadInfo);
+    <S extends T> S save(S uploadInfo);
 
     /**
      * Finds an UploadInfo record by its unique upload ID.

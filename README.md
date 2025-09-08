@@ -5,6 +5,16 @@ This project implements a resumable file upload service in Java (Spring Boot). T
 - `client`: A Java client for interacting with the upload service.
 - `model`: Shared data transfer objects (DTOs) used by both the server and client.
 
+## 🚀 Latest Release: v1.3.0
+
+**Enhanced Scripts & Cross-Platform Support**
+- ✅ Advanced argument parsing with `--key=value` format support
+- ✅ Cross-platform compatibility (Windows .bat + Linux .sh)
+- ✅ Debug output for troubleshooting
+- ✅ Robust error handling and validation
+- ✅ Smart JAR file detection and execution
+- ✅ Automated GitHub Actions workflow with release packaging
+
 ## Features
 
 ### Core Features
@@ -13,6 +23,7 @@ This project implements a resumable file upload service in Java (Spring Boot). T
 - Database-free resumable uploads
 - Configurable storage directories
 - Comprehensive test suite
+- **Reliable in-memory test infrastructure:** Integration and core tests now use in-memory persistence (`InMemoryChunkedUpload`) for fast, isolated, and deterministic test runs.
 
 ### Performance & Reliability
 - Concurrent chunk uploads
@@ -28,6 +39,8 @@ This project implements a resumable file upload service in Java (Spring Boot). T
 - Progress tracking
 - Error recovery
 - Custom transport support
+- **NEW:** Enhanced argument parsing with debug output
+- **NEW:** Cross-platform script support
 
 ### Server Features
 - RESTful API endpoints
@@ -35,6 +48,8 @@ This project implements a resumable file upload service in Java (Spring Boot). T
 - Tenant isolation
 - Checksum validation
 - Rolling log files
+- **NEW:** Enhanced argument parsing with debug output
+- **NEW:** Cross-platform script support
 
 ## Gradle Project Structure
 The project uses a multi-module Gradle setup. The root `build.gradle` file configures shared settings for the subprojects: `server`, `client`, and `model`. Dependency versions are managed centrally using the `io.spring.dependency-management` plugin and the Spring Boot BOM, ensuring consistency across all modules.

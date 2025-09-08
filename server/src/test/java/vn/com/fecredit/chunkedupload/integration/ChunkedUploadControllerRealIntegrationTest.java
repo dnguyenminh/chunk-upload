@@ -9,6 +9,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import vn.com.fecredit.chunkedupload.model.util.ChecksumUtil;
@@ -25,14 +27,29 @@ import java.util.Random;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@TestPropertySource(properties = {
+    "logging.level.org.springframework.web.client=TRACE",
+    "logging.level.org.apache.http=TRACE"
+})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class ChunkedUploadControllerRealIntegrationTest {
 
     @Autowired
     private vn.com.fecredit.chunkedupload.model.TenantAccountRepository repo;
 
+    @Autowired
+    private vn.com.fecredit.chunkedupload.model.UploadInfoRepository uploadInfoRepo;
+
+    @Autowired
+    private vn.com.fecredit.chunkedupload.model.UploadInfoHistoryRepository uploadInfoHistoryRepo;
+
     @BeforeEach
     public void setupTestUsers() {
+        // Clean up in correct order to avoid foreign key constraint violations
+        uploadInfoHistoryRepo.deleteAll();
+        uploadInfoRepo.deleteAll();
         repo.deleteAll();
+
         vn.com.fecredit.chunkedupload.model.TenantAccount user = new vn.com.fecredit.chunkedupload.model.TenantAccount();
         user.setTenantId("testTenant");
         user.setUsername("user");

@@ -18,7 +18,8 @@ public class DefaultChunkedUpload extends AbstractChunkedUpload<DeafultTenantAcc
 
     @Override
     protected DefaultUploadInfo createUploadInfo(String username, String uploadId, Header header, String fileName, String checksum) throws Throwable {
-        return new DefaultUploadInfo() {
+        log.debug("Creating DefaultUploadInfo: username={}, uploadId={}, fileName={}, checksum={}", username, uploadId, fileName, checksum);
+        DefaultUploadInfo info = new DefaultUploadInfo() {
             {
                 setUploadId(uploadId);
                 setFilename(fileName);
@@ -26,5 +27,26 @@ public class DefaultChunkedUpload extends AbstractChunkedUpload<DeafultTenantAcc
                 setUploadDateTime(java.time.LocalDateTime.now());
             }
         };
+        log.debug("Created DefaultUploadInfo: {}", info);
+        return info;
+    }
+
+    @Override
+    protected DefaultUploadInfo saveUploadInfo(DefaultUploadInfo uploadInfo) {
+        log.debug("saveUploadInfo called for DefaultUploadInfo: {}", uploadInfo);
+        // Default implementation - return as-is since no persistence in core module
+        return uploadInfo;
+    }
+
+    @Override
+    protected void updateLastUpdateDateTime(DefaultUploadInfo uploadInfo) {
+        // Default implementation - may not have lastUpdateDateTime field
+        log.debug("updateLastUpdateDateTime called for DefaultUploadInfo - no-op implementation");
+    }
+
+    @Override
+    protected void moveToHistory(DefaultUploadInfo uploadInfo) {
+        // Default implementation - no history functionality in core module
+        log.debug("moveToHistory called for DefaultUploadInfo - no-op implementation");
     }
 }

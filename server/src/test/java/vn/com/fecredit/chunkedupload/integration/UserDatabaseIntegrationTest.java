@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -13,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class UserDatabaseIntegrationTest {
 
     @Autowired
@@ -41,9 +43,19 @@ public class UserDatabaseIntegrationTest {
     @Autowired
     private vn.com.fecredit.chunkedupload.model.TenantAccountRepository tenantAccountRepository;
 
+    @Autowired
+    private vn.com.fecredit.chunkedupload.model.UploadInfoRepository uploadInfoRepository;
+
+    @Autowired
+    private vn.com.fecredit.chunkedupload.model.UploadInfoHistoryRepository uploadInfoHistoryRepository;
+
     @BeforeEach
     public void setupUser() {
+        // Delete in order to respect foreign key constraints
+        uploadInfoHistoryRepository.deleteAll();
+        uploadInfoRepository.deleteAll();
         tenantAccountRepository.deleteAll();
+
         vn.com.fecredit.chunkedupload.model.TenantAccount user = new vn.com.fecredit.chunkedupload.model.TenantAccount();
         user.setTenantId("testTenant");
         user.setUsername("user");

@@ -35,9 +35,19 @@ public class ChunkedUploadControllerTest {
     @Autowired
     private vn.com.fecredit.chunkedupload.model.TenantAccountRepository repo;
 
+    @Autowired
+    private vn.com.fecredit.chunkedupload.model.UploadInfoRepository uploadInfoRepo;
+
+    @Autowired
+    private vn.com.fecredit.chunkedupload.model.UploadInfoHistoryRepository uploadInfoHistoryRepo;
+
     @org.junit.jupiter.api.BeforeEach
     public void setupTestUser() {
+        // Clean up in correct order to avoid foreign key constraint violations
+        uploadInfoHistoryRepo.deleteAll();
+        uploadInfoRepo.deleteAll();
         repo.deleteAll();
+
         vn.com.fecredit.chunkedupload.model.TenantAccount user = new vn.com.fecredit.chunkedupload.model.TenantAccount();
         user.setTenantId("testTenant");
         user.setUsername("user");

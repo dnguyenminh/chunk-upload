@@ -1,5 +1,15 @@
 # Chunked Upload Service – User Guide
 
+## 🚀 Latest Release: v1.3.0
+
+**Enhanced Scripts & Cross-Platform Support**
+- ✅ Advanced argument parsing with `--key=value` format support
+- ✅ Cross-platform compatibility (Windows .bat + Linux .sh)
+- ✅ Debug output for troubleshooting
+- ✅ Robust error handling and validation
+- ✅ Smart JAR file detection and execution
+- ✅ Automated GitHub Actions workflow with release packaging
+
 ## Overview
 This project provides a resumable, chunked file upload system in Java (Spring Boot). The project is divided into three modules:
 - `server`: The main Spring Boot application providing the upload API.
@@ -16,6 +26,11 @@ This project provides a resumable, chunked file upload system in Java (Spring Bo
 - Logback configuration is provided in [`server/src/main/resources/logback.xml`](server/src/main/resources/logback.xml:1).
 - Logback now uses a rolling file appender with daily log rotation (`logs/server.%d{yyyy-MM-dd}.log`, 30 days history).
 - Logback and SLF4J dependencies are managed by Spring Boot; do not declare explicit Logback versions in Gradle.
+
+## Test Infrastructure
+
+- Integration and core tests use an in-memory persistence implementation (`InMemoryChunkedUpload`) for reliable, isolated, and fast test execution.
+- This approach ensures that tests are deterministic and do not depend on external databases or file systems.
 
 ### Release Artifacts Structure
 
@@ -42,6 +57,58 @@ This project provides a resumable, chunked file upload system in Java (Spring Bo
 See `.github/workflows/build-and-release.yml` for packaging details.
 
 ## Usage Guide
+
+### Enhanced Scripts (v1.3.0)
+
+The v1.3.0 release includes significantly enhanced client and server scripts with advanced features:
+
+#### Client Script Features
+- ✅ **Advanced argument parsing** with `--key=value` format support
+- ✅ **Debug output** for troubleshooting argument parsing
+- ✅ **Cross-platform compatibility** (Windows .bat + Linux .sh)
+- ✅ **Robust error handling** and validation
+- ✅ **Smart JAR file detection** and execution
+
+#### Server Script Features
+- ✅ **Advanced argument parsing** with `--key=value` format support
+- ✅ **Debug output** for troubleshooting argument parsing
+- ✅ **Cross-platform compatibility** (Windows .bat + Linux .sh)
+- ✅ **Smart JAR selection** (executable JARs prioritized)
+- ✅ **Path resolution** works from any directory
+
+#### Usage Examples
+
+**Client Script:**
+```bash
+# Windows
+cd client
+run-client.bat --filePath=myfile.txt --uploadUrl=http://localhost:8080/api/upload --username=user --password=password
+
+# Linux/Mac
+cd client
+./run-client.sh --filePath=myfile.txt --uploadUrl=http://localhost:8080/api/upload --username=user --password=password
+```
+
+**Server Script:**
+```bash
+# Windows
+cd server
+run-server.bat --server.port=8081 --chunkedupload.chunk-size=1048576
+
+# Linux/Mac
+cd server
+./run-server.sh --server.port=8081 --chunkedupload.chunk-size=1048576
+```
+
+#### Debug Output
+Both scripts now provide detailed debug output to help troubleshoot issues:
+```
+Debugging: Processing arg=[--filePath=myfile.txt]
+Debugging: Checking if arg [--filePath=myfile.txt] contains =
+Debugging: = found, extracting value
+Debugging: Extracted key=[filePath], value=[myfile.txt]
+Debugging: Set filePath=[myfile.txt]
+```
 
 ### Initial Server Setup
 
