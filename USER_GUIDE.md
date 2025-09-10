@@ -1,374 +1,192 @@
-# Chunked Upload Service – User Guide
+<!-- This file has been updated to include all API endpoints. -->
+# User Guide
 
-## 🚀 Latest Release: v1.3.0
+This guide provides step-by-step instructions for building, running, and interacting with the Chunked File Upload System.
 
-**Enhanced Scripts & Cross-Platform Support**
-- ✅ Advanced argument parsing with `--key=value` format support
-- ✅ Cross-platform compatibility (Windows .bat + Linux .sh)
-- ✅ Debug output for troubleshooting
-- ✅ Robust error handling and validation
-- ✅ Smart JAR file detection and execution
-- ✅ Automated GitHub Actions workflow with release packaging
+## 1. Prerequisites
 
-## Overview
-This project provides a resumable, chunked file upload system in Java (Spring Boot). The project is divided into three modules:
-- `server`: The main Spring Boot application providing the upload API.
-- `client`: A Java client (`ChunkedUploadClient`) for interacting with the upload service.
-- `model`: Shared data transfer objects (DTOs) used by both the server and client.
+- Java JDK 17 or later
+- An internet connection (for downloading Gradle dependencies)
 
-## Directory Structure
-* Upload directories are configurable in `server/src/main/resources/application.properties`:
-  - `chunkedupload.inprogress-dir`: Temporary storage for in-progress uploads (default: `uploads/in-progress`)
-  - `chunkedupload.complete-dir`: Final assembled files (default: `uploads/complete`), named as `<originalFilename>`
+## 2. Building the Project
 
-## Logging
-- SLF4J logging is used throughout the project, with Logback as the backend.
-- Logback configuration is provided in [`server/src/main/resources/logback.xml`](server/src/main/resources/logback.xml:1).
-- Logback now uses a rolling file appender with daily log rotation (`logs/server.%d{yyyy-MM-dd}.log`, 30 days history).
-- Logback and SLF4J dependencies are managed by Spring Boot; do not declare explicit Logback versions in Gradle.
+The entire project can be built from the root directory using the Gradle wrapper. This command will compile all modules, run the unit tests, and create the necessary JAR files.
 
-## Test Infrastructure
-
-- Integration and core tests use an in-memory persistence implementation (`InMemoryChunkedUpload`) for reliable, isolated, and fast test execution.
-- This approach ensures that tests are deterministic and do not depend on external databases or file systems.
-
-### Release Artifacts Structure
-
-**server.zip** contains:
-- libs/download-dependencies.bat
-- libs/download-dependencies.sh
-- libs/model.jar
-- run-server.bat
-- run-server.sh
-- build/libs/server.jar
-- create-user.bat
-- create-user.sh
-
-**client.zip** contains:
-- libs/download-dependencies.bat
-- libs/download-dependencies.sh
-- libs/model.jar
-- run-server.bat
-- run-server.sh
-- build/libs/client.jar
-
-**model.jar** is also published as a separate artifact.
-
-See `.github/workflows/build-and-release.yml` for packaging details.
-
-## Usage Guide
-
-### Enhanced Scripts (v1.3.0)
-
-The v1.3.0 release includes significantly enhanced client and server scripts with advanced features:
-
-#### Client Script Features
-- ✅ **Advanced argument parsing** with `--key=value` format support
-- ✅ **Debug output** for troubleshooting argument parsing
-- ✅ **Cross-platform compatibility** (Windows .bat + Linux .sh)
-- ✅ **Robust error handling** and validation
-- ✅ **Smart JAR file detection** and execution
-
-#### Server Script Features
-- ✅ **Advanced argument parsing** with `--key=value` format support
-- ✅ **Debug output** for troubleshooting argument parsing
-- ✅ **Cross-platform compatibility** (Windows .bat + Linux .sh)
-- ✅ **Smart JAR selection** (executable JARs prioritized)
-- ✅ **Path resolution** works from any directory
-
-#### Usage Examples
-
-**Client Script:**
-```bash
-# Windows
-cd client
-run-client.bat --filePath=myfile.txt --uploadUrl=http://localhost:8080/api/upload --username=user --password=password
-
-# Linux/Mac
-cd client
-./run-client.sh --filePath=myfile.txt --uploadUrl=http://localhost:8080/api/upload --username=user --password=password
+**On Windows:**
+```sh
+.\gradlew.bat clean build
 ```
 
-**Server Script:**
-```bash
-# Windows
-cd server
-run-server.bat --server.port=8081 --chunkedupload.chunk-size=1048576
-
-# Linux/Mac
-cd server
-./run-server.sh --server.port=8081 --chunkedupload.chunk-size=1048576
+**On macOS/Linux:**
+```sh
+./gradlew clean build
 ```
 
-#### Debug Output
-Both scripts now provide detailed debug output to help troubleshoot issues:
-```
-Debugging: Processing arg=[--filePath=myfile.txt]
-Debugging: Checking if arg [--filePath=myfile.txt] contains =
-Debugging: = found, extracting value
-Debugging: Extracted key=[filePath], value=[myfile.txt]
-Debugging: Set filePath=[myfile.txt]
-```
+## 3. Running the Server
 
-### Initial Server Setup
+The Spring Boot server must be running for any of the clients to work.
 
-1. **Create a User Account**
-   Before using the API, you must create a user account. Use the provided script:
-   ```bash
-   # Windows
-   cd server
-   create-user.bat myTenant myUsername myPassword
+1.  Navigate to the `server` directory:
+    ```sh
+    cd server
+    ```
+2.  Run the server using the `bootRun` Gradle task:
+    ```sh
+    ..\gradlew.bat bootRun
+    ```
+    (or `./gradlew bootRun` on macOS/Linux)
 
-   # Linux/Mac
-   cd server
-   ./create-user.sh myTenant myUsername myPassword
-   ```
-   This creates a new user with the specified credentials in the database.
+The server will start on `http://localhost:8080`.
 
-### Client Setup and Configuration
+## 4. API Endpoint Documentation
 
-1. **Basic Usage**
-```java
-// Create client with minimal configuration
-ChunkedUploadClient client = new ChunkedUploadClient.Builder()
-    .uploadUrl("http://server/api/upload")
-    .username("user")
-    .password("pass")
-    .build();
+The server exposes a REST API for the chunked upload process.
 
-// Upload a file
-String uploadId = client.upload(Paths.get("largefile.zip"), null, null);
-```
+### `POST /api/upload/init`
 
-2. **Advanced Configuration**
-```java
-// Create client with performance tuning
-ChunkedUploadClient client = new ChunkedUploadClient.Builder()
-    .uploadUrl("http://server/api/upload")
-    .username("user")
-    .password("pass")
-    .retryTimes(5)              // More retries for unreliable networks
-    .threadCounts(8)            // More threads for high bandwidth
-    .httpClient(customClient)   // Custom HTTP client config
-    .transport(customTransport) // Custom transport layer
-    .build();
+Initializes a new upload session. The server creates a temporary file and returns a unique `uploadId`.
 
-// Upload with custom retry/thread settings
-client.upload(filePath, 3, 6);
-```
-
-3. **Resume Handling**
-```java
-try {
-    client.upload(filePath, 3, 4);
-} catch (RuntimeException e) {
-    if (e.getMessage().contains("network error")) {
-        // Resume the upload
-        client.resumeUpload(brokenUploadId, filePath);
-    }
-}
-```
-
-### Authentication
-
-The server uses HTTP Basic Authentication with BCrypt password hashing. All API requests must include an `Authorization` header with valid credentials.
-
-**Important Notes:**
-1. Passwords are stored using BCrypt encoding with a '{bcrypt}' prefix
-2. The server uses H2 database to store user credentials in the `tenants` table
-3. Always send the plain password in requests - the server handles encryption
-
-Example Authentication:
-```bash
-# Using the -u option (recommended)
-curl -u "username:password" ...
-
-# Or manually with base64 encoding
-curl -H "Authorization: Basic $(echo -n 'username:password' | base64)" ...
-```
-
-**Database Details:**
-- File location: `./data/chunkedupload.mv.db`
-- Tables are automatically created on first run
-- Test users can be loaded from `server/src/test/resources/test-users.sql`
-
-**Default Test Account:**
-```
-Username: user
-Password: password
-Tenant ID: testTenant
-```
-
-For production use, create new accounts using the create-user script:
-```bash
-# Windows
-create-user.bat <tenantId> <username> <password>
-
-# Linux/Mac
-./create-user.sh <tenantId> <username> <password>
-```
-
-### API Reference
-
-#### 1. Upload Initialization
-`POST /api/upload/init`
-
-Starts a new upload session.
-
-**Curl Example:**
-```bash
+**cURL Example:**
+```sh
 curl -X POST http://localhost:8080/api/upload/init \
-  -H "Content-Type: application/json" \
-  -u "username:password" \
-  -d '{
-    "filename": "integration-test-file.txt",
-    "fileSize": 30,
-    "checksum": "c1a083071660f1832a863328ea7ead2388cb870f80be40dbba407cc3d1e5132a"
-  }'
+-u user1:password \
+-H "Content-Type: application/json" \
+-d '{"filename": "my-large-file.zip", "fileSize": 104857600, "checksum": "a1b2c3d4..."}'
 ```
 
-**Request:**
-```json
-{
-  "filename": "integration-test-file.txt",
-  "fileSize": 30,
-  "checksum": "c1a083071660f1832a863328ea7ead2388cb870f80be40dbba407cc3d1e5132a"
-}
-```
+### `POST /api/upload/chunk`
 
-**Response:**
-```json
-{
-  "uploadId": "unique-session-id",
-  "totalChunks": 1,
-  "chunkSize": 524288,
-  "fileSize": 30,
-  "filename": "integration-test-file.txt",
-  "checksum": "c1a083071660f1832a863328ea7ead2388cb870f80be40dbba407cc3d1e5132a",
-  "bitsetBytes": "base64-encoded-progress"
-}
-```
+Uploads a single chunk of the file.
 
-**Status Codes:**
-- 200: Success
-- 400: Invalid request
-- 401: Unauthorized
-- 500: Server error
-
-#### 2. Chunk Upload
-`POST /api/upload/chunk`
-
-Uploads a single chunk using multipart/form-data.
-
-**Curl Example:**
-```bash
+**cURL Example:**
+```sh
+# Note: You need to have the file chunk saved as a separate file (e.g., chunk0.part) to use with curl's -F flag.
 curl -X POST http://localhost:8080/api/upload/chunk \
-  -u "username:password" \
-  -F "uploadId=your-upload-id" \
-  -F "chunkNumber=0" \
-  -F "file=@chunk_data.bin"
+-u user1:password \
+-F "uploadId=a1b2c3d4-e5f6-7890-1234-567890abcdef" \
+-F "chunkNumber=0" \
+-F "file=@/path/to/your/chunk0.part"
 ```
 
-**Request Fields:**
-- uploadId (form field): Session identifier
-- chunkNumber (form field): Zero-based chunk index
-- file (form file): Binary chunk data
+### `GET /api/users`
 
-**Response:**
-- 200: Chunk accepted
-- 400: Invalid chunk
-- 404: Session not found
-- 409: Chunk already uploaded
+Retrieves a list of all tenant accounts in the system.
 
-#### 3. Status Check
-`GET /api/upload/status/{uploadId}`
-
-Retrieves current upload status.
-
-**Curl Example:**
-```bash
-curl http://localhost:8080/api/upload/status/your-upload-id \
-  -u "username:password"
+**cURL Example:**
+```sh
+curl -X GET http://localhost:8080/api/users -u user1:password
 ```
 
-**Response:**
-```json
-{
-  "uploadId": "session-id",
-  "completedChunks": 5,
-  "totalChunks": 10,
-  "status": "IN_PROGRESS"
-}
+### `GET /api/upload/{uploadId}/status`
+
+Checks the status of an ongoing upload. This can be used to see if an upload session is still active.
+
+**cURL Example:**
+```sh
+curl -X GET http://localhost:8080/api/upload/a1b2c3d4-e5f6-7890-1234-567890abcdef/status -u user1:password
 ```
 
-### Performance Optimization
+**Response:** A `200 OK` with a string message indicating the status.
 
-1. **Thread Count Guidelines:**
-   - CPU-bound: threads = CPU cores
-   - Network-bound: threads = 2-4x cores
-   - Memory-bound: reduce thread count
+### `DELETE /api/upload/{uploadId}`
 
-2. **Retry Strategy:**
-   - Network issues: 3-5 retries
-   - Server errors: 2-3 retries
-   - Client errors: no retry
+Aborts and deletes an in-progress upload. This will remove the temporary part file and any associated database records.
 
-3. **Memory Management:**
-   - Monitor heap usage
-   - Adjust queue size
-   - Use file streaming
+**cURL Example:**
+```sh
+curl -X DELETE http://localhost:8080/api/upload/a1b2c3d4-e5f6-7890-1234-567890abcdef -u user1:password
+```
 
-### Error Handling
+**Response:** A `204 No Content` status on success.
 
-1. **Network Errors:**
-   - Automatic retry with backoff
-   - Session resumption
-   - Connection pooling
+## 5. Running the Clients
 
-2. **Data Integrity:**
-   - Checksum validation
-   - Chunk verification
-   - Session state checks
+There are three different clients available. For each, open a new terminal window.
 
-3. **Resource Cleanup:**
-   - Automatic thread shutdown
-   - Memory release
-   - File handle closure
+### a) Java Client (Command Line)
 
-### Monitoring and Debugging
+1.  Navigate to the `client` directory.
+2.  Run the `run` task via Gradle, passing the file path and credentials as arguments:
+    ```sh
+    ..\gradlew.bat run --args="--filePath=C:\path\to\your\file.zip --uploadUrl=http://localhost:8080/api/upload --username=user1 --password=password"
+    ```
 
-1. **Log Analysis:**
-   - Check `logs/server.%d{yyyy-MM-dd}.log`
-   - Monitor error patterns
-   - Track performance metrics
+### b) JavaScript Client (JVM via GraalVM)
 
-2. **Performance Metrics:**
-   - Upload throughput
-   - Chunk success rate
-   - Thread pool stats
-   - Memory usage
+1.  Navigate to the `js-client` directory.
+2.  Run the `run` task via Gradle:
+    ```sh
+    ..\gradlew.bat run --args="--filePath=C:\path\to\your\file.zip --uploadUrl=http://localhost:8080/api/upload --username=user1 --password=password"
+    ```
 
-3. **Debug Mode:**
-   - Enable verbose logging
-   - Track chunk progress
-   - Monitor thread states
-   - Validate checksums
+### c) Browser-Native Client (Concurrent)
 
-### Security Considerations
+This is the most advanced client, running entirely in a web browser and using Web Workers for concurrent uploads.
 
-1. **Authentication:**
-   - Basic auth required
-   - HTTPS recommended
-   - Token expiration
+1.  Open the `index.html` file from the `browser-client` directory in a modern web browser.
+2.  The page will automatically fetch the list of available users.
+3.  Select a user, choose a file, and click "Upload".
 
-2. **Data Protection:**
-   - Tenant isolation
-   - File validation
-   - Size limits
-   - Type checking
+#### Concurrent Upload Sequence Diagram
 
-3. **Resource Limits:**
-   - Max file size
-   - Chunk size bounds
-   - Session timeouts
-   - Thread limits
+This diagram illustrates how the browser client uses Web Workers to upload multiple chunks in parallel.
+
+```plantuml
+@startuml
+!theme vibrant
+
+actor User
+participant "Main Thread (UI)" as Main
+participant "Uploader Client" as Client
+participant "Worker Pool" as Pool
+participant "Server API" as Server
+
+User -> Main: Selects file & clicks Upload
+Main -> Client: start()
+
+activate Client
+Client -> Client: Calculate Checksum
+Client -> Server: POST /init (with checksum)
+activate Server
+Server --> Client: 200 OK (uploadId, chunkSize)
+deactivate Server
+
+Client -> Main: onTotalChunks(total)
+Main -> Main: Render Chunk Grid
+
+Client -> Pool: Create Workers
+Client -> Client: Create Chunk Queue
+
+loop For each worker in pool
+  Client -> Pool: Dispatch chunk task
+end
+
+par
+  Pool -> Server: POST /chunk (Chunk 1)
+  activate Server
+  Server --> Pool: 200 OK
+  deactivate Server
+  Pool -> Client: onmessage (success, chunk 1)
+  Client -> Main: onChunkStatusChange(1, success)
+  Main -> Main: Update UI (Grid & Progress)
+  Client -> Pool: Dispatch chunk task (Chunk 3)
+else
+  Pool -> Server: POST /chunk (Chunk 2)
+  activate Server
+  Server --> Pool: 200 OK
+  deactivate Server
+  Pool -> Client: onmessage (success, chunk 2)
+  Client -> Main: onChunkStatusChange(2, success)
+  Main -> Main: Update UI (Grid & Progress)
+  Client -> Pool: Dispatch chunk task (Chunk 4)
+end
+
+... All chunks complete ...
+
+Client -> Main: onComplete()
+Main -> User: Show "Upload Successful"
+
+deactivate Client
+
+@enduml
+```

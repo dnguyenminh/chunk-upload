@@ -1,67 +1,46 @@
 package vn.com.fecredit.chunkedupload.model.util;
 
-import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
+import java.io.IOException;
 
-/**
- * Utility class for generating and validating file checksums.
- *
- * <p>
- * This class provides methods for:
- * <ul>
- * <li>Generating SHA-256 checksums of files</li>
- * <li>Computing checksums in a streaming fashion for large files</li>
- * <li>Using efficient buffer sizes for performance</li>
- * </ul>
- *
- * <p>
- * Usage example:
- * <pre>
- * Path file = Paths.get("myfile.txt");
- * String checksum = ChecksumUtil.generateChecksum(file);
- * </pre>
- */
-public final class ChecksumUtil {
-
-    /** Size of buffer used for reading file data (8KB) */
-    private static final int BUFFER_SIZE = 8192;
-
-    private ChecksumUtil() {
-        // Utility class, no instances allowed
+public class ChecksumUtil {
+    /**
+     * Generates a SHA-256 checksum from the given byte array.
+     * @param data the byte array to checksum
+     * @return the checksum as a hex string
+     */
+    public static String generateChecksum(byte[] data) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data);
+            return bytesToHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 algorithm not available", e);
+        }
     }
 
     /**
-     * Generates a SHA-256 checksum for a file.
-     *
-     * <p>
-     * The file is read in chunks to efficiently handle large files.
-     * The resulting checksum is returned as a lowercase hexadecimal string.
-     *
-     * @param filePath Path to the file to checksum
-     * @return SHA-256 checksum as a hex string
-     * @throws IOException If the file cannot be read or if SHA-256 algorithm is unavailable
+     * Generates a SHA-256 checksum from the file at the given path.
+     * @param filePath the path to the file
+     * @return the checksum as a hex string
      */
-    public static String generateChecksum(Path filePath) throws IOException {
-        try (var fis = Files.newInputStream(filePath)) {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] buffer = new byte[BUFFER_SIZE];
-            int read;
-            while ((read = fis.read(buffer)) != -1) {
-                digest.update(buffer, 0, read);
-            }
-            byte[] hash = digest.digest();
-            StringBuilder hexString = new StringBuilder(2 * hash.length);
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1)
-                    hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (Exception e) {
-            throw new IOException("Failed to compute SHA-256 checksum", e);
+    public static String generateChecksum(Path filePath) {
+        try {
+            byte[] data = Files.readAllBytes(filePath);
+            return generateChecksum(data);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read file for checksum: " + filePath, e);
         }
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 }

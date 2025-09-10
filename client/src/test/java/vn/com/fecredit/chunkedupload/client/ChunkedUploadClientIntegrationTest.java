@@ -57,7 +57,7 @@ class ChunkedUploadClientIntegrationTest {
     private String uploadUrl;
     private final String USERNAME = "user";
     private final String PASSWORD = "password";
-    private final String FILENAME = "integration-test-file.txt";
+    private final String FILENAME = "temp/integration-test-file.txt";
     private final byte[] FILE_CONTENT = "Integration test file content.".getBytes();
     private Path tempFile;
 
@@ -73,7 +73,7 @@ class ChunkedUploadClientIntegrationTest {
      * verifying file locations.
      *
      * @param username Username to look up
-     * @param user Authentication username
+     * @param user     Authentication username
      * @param password Authentication password
      * @return Tenant ID for the username
      * @throws IOException if user lookup fails
@@ -184,11 +184,12 @@ class ChunkedUploadClientIntegrationTest {
                 .build();
         long tenantId = getTenantIdByUsername(USERNAME, USERNAME, PASSWORD);
         String uploadId = client.upload(tempFile, null, null);
-        Path uploadedFilePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), tempFile.getFileName().toString());
+        Path uploadedFilePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), uploadId + "_" + tempFile.getFileName().toString());
         filesToDelete.add(uploadedFilePath);
 
-        // Wait and retry to ensure file is assembled before checking existence
         System.out.println("[DEBUG] Checking file existence: " + uploadedFilePath.toAbsolutePath());
+        // DEBUG: Print expected file path and name for comparison
+        System.out.println("[DEBUG] Expected file path: " + uploadedFilePath.toString());
         boolean exists = false;
         int retries = 5;
         for (int i = 0; i < retries; i++) {
@@ -207,7 +208,7 @@ class ChunkedUploadClientIntegrationTest {
                     ChecksumUtil.generateChecksum(uploadedFilePath),
                     "File content should match"
             );
-        } catch (IOException e) {
+        } catch (RuntimeException e) {
             fail("Failed to read uploaded file: " + e.getMessage());
         }
     }
@@ -227,7 +228,7 @@ class ChunkedUploadClientIntegrationTest {
     void testUploadBigFileIntegration() throws IOException {
         byte[] bigFile = new byte[5 * 1024 * 1024]; // 5MB
         for (int i = 0; i < bigFile.length; i++) bigFile[i] = (byte) (i % 256);
-        String bigFileName = "big-file.bin";
+        String bigFileName = "temp/big-file.bin";
         Path bigFilePathLocal = Files.createTempFile("big-file", ".bin");
         Files.write(bigFilePathLocal, bigFile);
         filesToDelete.add(bigFilePathLocal);
@@ -239,7 +240,7 @@ class ChunkedUploadClientIntegrationTest {
                 .build();
         long tenantId = getTenantIdByUsername(USERNAME, USERNAME, PASSWORD);
         String uploadId = client.upload(bigFilePathLocal, null, null);
-        Path bigFilePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), bigFilePathLocal.getFileName().toString());
+        Path bigFilePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), uploadId + "_" + bigFilePathLocal.getFileName().toString());
         filesToDelete.add(bigFilePath);
 
         // Wait and retry to ensure big file is assembled before checking existence
@@ -278,7 +279,7 @@ class ChunkedUploadClientIntegrationTest {
     void testResumeFailedUpload() throws IOException, InterruptedException, NoSuchAlgorithmException {
         byte[] file = new byte[1024 * 1024]; // 1MB
         for (int i = 0; i < file.length; i++) file[i] = (byte) (i % 256);
-        String fileName = "resume-test-file.bin";
+        String fileName = "temp/resume-test-file.bin";
         Path filePathLocal = Files.createTempFile("resume-test-file", ".bin");
         Files.write(filePathLocal, file);
         filesToDelete.add(filePathLocal);
@@ -303,7 +304,7 @@ class ChunkedUploadClientIntegrationTest {
         } catch (RuntimeException e) {
             System.out.println("Resume failed as expected: " + e.getMessage());
         }
-        Path filePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), filePathLocal.getFileName().toString());
+        Path filePath = Path.of(COMPLETE_DIR, String.valueOf(tenantId), uploadId + "_" + filePathLocal.getFileName().toString());
         filesToDelete.add(filePath);
 
         System.out.println("[DEBUG] Checking file existence: " + filePath.toAbsolutePath());

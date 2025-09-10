@@ -3,21 +3,27 @@ plugins {
 }
 
 group = 'vn.com.fecredit.chunkedupload'
+version = '1.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    // SLF4J for logging
+    implementation 'org.slf4j:slf4j-api:2.0.7'
+
     // Lombok for reducing boilerplate code in model classes
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
-    implementation 'com.fasterxml.jackson.core:jackson-annotations'
-    implementation 'ch.qos.logback:logback-classic:1.5.18'
+
+    implementation project(':model')
 
     // Standard validation APIs
     implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
-    implementation project(':model')
+
+    // Jackson annotations for handling JSON serialization
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.15.2'
 
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'

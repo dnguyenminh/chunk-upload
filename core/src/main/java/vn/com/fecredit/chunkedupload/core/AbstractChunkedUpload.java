@@ -84,7 +84,7 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
     private Path getFinalPath(String username, String uploadId) throws Throwable {
         T tenantAccount = iTenantAccountPort.findByUsername(username).orElseThrow(() -> new IllegalStateException("Tenant not found for username: " + username));
         Y uploadInfo = iUploadInfoPort.findByTenantAndUploadId(tenantAccount, uploadId).orElseThrow(() -> new IllegalStateException("UploadInfo not found for tenant id: " + tenantAccount.getId()));
-        return completeDir.resolve(String.valueOf(tenantAccount.getId())).resolve(uploadInfo.getFilename());
+        return completeDir.resolve(String.valueOf(tenantAccount.getId())).resolve(uploadId + "_" + uploadInfo.getFilename());
     }
 
     public Header createOrValidateHeader(Path partPath, int totalChunks, int chunkSize, long fileSize) throws IOException {
@@ -230,7 +230,7 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
     /**
      * Abstract method to update the lastUpdateDateTime field.
      * Concrete implementations should provide the specific logic for their entity type.
-     * 
+     *
      * @param uploadInfo The upload info entity to update
      */
     protected abstract void updateLastUpdateDateTime(Y uploadInfo);
@@ -238,7 +238,7 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
     /**
      * Abstract method to move completed upload to history.
      * Concrete implementations should provide the specific logic for their entity and history types.
-     * 
+     *
      * @param uploadInfo The completed upload info to move to history
      */
     protected abstract void moveToHistory(Y uploadInfo);
@@ -257,6 +257,10 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
                 try (FileLock fileLock = ch.lock()) {
                     log.debug("Acquired file lock for uploadId={}, chunkNumber={}, partPath={}", uploadId, chunkNumber, partPath);
                     Header header = readHeader(ch);
+                    // Validate chunk number bounds
+                    if (chunkNumber < 0 || chunkNumber >= header.totalChunks) {
+                        throw new IllegalArgumentException("Invalid chunk number: " + chunkNumber + ", totalChunks: " + header.totalChunks);
+                    }
                     validateChunkSize(chunkNumber, header, data);
 
                     log.debug("Writing chunk: uploadId={}, chunkNumber={}, data.length={}, partPath={}", uploadId, chunkNumber, data != null ? data.length : -1, partPath);
@@ -318,7 +322,9 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
         Path lockPath = partPath.resolveSibling(partPath.getFileName() + ".lock");
 
         log.debug("Assembling file for uploadId={}, partPath={}, finalPath={}, lockPath={}, fileSize={}, thread={}, time={}",
-            uploadId, partPath, finalPath, lockPath, fileSize, Thread.currentThread().getName(), System.currentTimeMillis());
+                uploadId, partPath, finalPath, lockPath, fileSize, Thread.currentThread().getName(), System.currentTimeMillis());
+        // DEBUG: Print actual final file path for comparison with test
+        System.out.println("[DEBUG] Server assembled file path: " + finalPath.toAbsolutePath());
 
         // Acquire lock file for chunk assembly
         int maxAttempts = 30;
@@ -327,7 +333,7 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
             try {
                 java.nio.file.Files.createFile(lockPath);
                 log.debug("Acquired lock file {} for uploadId={}, attempt={}, thread={}, time={}",
-                    lockPath, uploadId, attempt, Thread.currentThread().getName(), System.currentTimeMillis());
+                        lockPath, uploadId, attempt, Thread.currentThread().getName(), System.currentTimeMillis());
                 break;
             } catch (java.nio.file.FileAlreadyExistsException e) {
                 attempt++;
@@ -336,7 +342,7 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
                     throw new IOException("Could not acquire lock file for chunk assembly: " + lockPath);
                 }
                 log.debug("Lock file {} exists, waiting... uploadId={}, attempt={}, thread={}, time={}",
-                    lockPath, uploadId, attempt, Thread.currentThread().getName(), System.currentTimeMillis());
+                        lockPath, uploadId, attempt, Thread.currentThread().getName(), System.currentTimeMillis());
                 Thread.sleep(100);
             }
         }
@@ -344,7 +350,7 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
         try {
             try (FileChannel src = FileChannel.open(partPath, StandardOpenOption.READ); FileChannel dst = FileChannel.open(finalPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
                 log.debug("Opened partPath for assembly, uploadId={}, thread={}, time={}",
-                    uploadId, Thread.currentThread().getName(), System.currentTimeMillis());
+                        uploadId, Thread.currentThread().getName(), System.currentTimeMillis());
                 src.transferTo(headerSize, fileSize, dst);
             }
 
@@ -353,20 +359,20 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
                     String expectedChecksum = ((Y) info).getChecksum();
                     String actualChecksum = ChecksumUtil.generateChecksum(finalPath);
                     log.debug("Verifying checksum for uploadId={}: expected={}, actual={}, thread={}, time={}",
-                        uploadId, expectedChecksum, actualChecksum, Thread.currentThread().getName(), System.currentTimeMillis());
+                            uploadId, expectedChecksum, actualChecksum, Thread.currentThread().getName(), System.currentTimeMillis());
                     if (!expectedChecksum.equals(actualChecksum)) {
                         log.error("Checksum mismatch for uploadId={}: expected={}, actual={}", uploadId, expectedChecksum, actualChecksum);
                         throw new IOException("Checksum mismatch after file assembly");
                     }
-                    
+
                     // Move upload to history with COMPLETED status
                     Y uploadInfo = (Y) info;
                     moveToHistory(uploadInfo);
-                    
+
                     // Delete the original upload info and part file
                     iUploadInfoPort.delete(uploadInfo);
                     Files.deleteIfExists(partPath);
-                    
+
                     log.debug("Successfully moved uploadId={} to history and cleaned up files", uploadId);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -376,7 +382,7 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
             try {
                 Files.deleteIfExists(lockPath);
                 log.debug("Released lock file {} for uploadId={}, thread={}, time={}",
-                    lockPath, uploadId, Thread.currentThread().getName(), System.currentTimeMillis());
+                        lockPath, uploadId, Thread.currentThread().getName(), System.currentTimeMillis());
             } catch (IOException e) {
                 log.warn("Failed to delete lock file {} for uploadId={}: {}", lockPath, uploadId, e.getMessage());
             }
@@ -386,6 +392,10 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
     public void deleteUploadFile(String username, String uploadId) throws Throwable {
         Path partPath = getPartPath(username, uploadId);
         Files.deleteIfExists(partPath);
+        System.out.println("[DEBUG] deleteUploadFile called for uploadId=" + uploadId + ", tenant=" + username);
+        System.out.println("[DEBUG] UploadInfoPort.findByUploadId(" + uploadId + ") exists: " + iUploadInfoPort.findByUploadId(uploadId).isPresent());
+        Path completePath = getFinalPath(username, uploadId);
+        Files.deleteIfExists(completePath);
         iUploadInfoPort.findByUploadId(uploadId).ifPresent(info -> {
             try {
                 iUploadInfoPort.delete((Y) info);
@@ -394,7 +404,6 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
             }
         });
         removeUploadInfo(uploadId);
-        Path completePath = getFinalPath(username, uploadId);
-        Files.deleteIfExists(completePath);
+// DEBUG: Print uploadId and UploadInfo existence before deletion
     }
 }

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chunked File Uploader</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        .form-group { margin-bottom: 1em; }
+        label { display: block; margin-bottom: 0.25em; }
+        #status { margin-top: 1em; font-weight: bold; }
+        #progress-bar { width: 100%; margin-top: 0.5em; display: none; }
+        #chunk-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(20px, 1fr));
+            gap: 2px;
+            margin-top: 1em;
+            border: 1px solid #ccc;
+            padding: 5px;
+            min-height: 20px;
+        }
+        .chunk-cell {
+            width: 20px;
+            height: 20px;
+            background-color: #ccc; /* Default/pending */
+        }
+        .chunk-cell.pending { background-color: #f0ad4e; } /* Yellow */
+        .chunk-cell.sending { background-color: #5cb85c; animation: flash 1s infinite; } /* Flashing Green */
+        .chunk-cell.success { background-color: #5cb85c; } /* Solid Green */
+        .chunk-cell.error { background-color: #d9534f; } /* Red */
+        #retryButton { margin-top: 1em; display: none; }
+
+        @keyframes flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Chunked File Uploader</h1>
+
+    <div class="form-group">
+        <label for="userSelect">Select User:</label>
+        <select id="userSelect"></select>
+    </div>
+
+    <div class="form-group">
+        <label for="fileInput">Select File:</label>
+        <input type="file" id="fileInput">
+    </div>
+
+    <button id="uploadButton">Upload</button>
+    <button id="retryButton">Retry Failed Chunks</button>
+    <div id="status"></div>
+    <progress id="progress-bar" value="0" max="100"></progress>
+    <div id="chunk-grid"></div>
+
+    <script src="worker.js"></script>
+    <script src="browser-upload-client.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

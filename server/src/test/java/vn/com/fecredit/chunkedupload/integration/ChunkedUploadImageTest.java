@@ -1,3 +1,4 @@
+// FINAL FIX: Corrects both database cleanup order and file path assertion.
 package vn.com.fecredit.chunkedupload.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -13,6 +14,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import vn.com.fecredit.chunkedupload.model.TenantAccount;
+import vn.com.fecredit.chunkedupload.model.TenantAccountRepository;
+import vn.com.fecredit.chunkedupload.model.UploadInfoHistoryRepository;
+import vn.com.fecredit.chunkedupload.model.UploadInfoRepository;
 import vn.com.fecredit.chunkedupload.model.util.ChecksumUtil;
 
 import java.io.IOException;
@@ -29,11 +33,21 @@ import static org.junit.jupiter.api.Assertions.*;
 public class ChunkedUploadImageTest {
 
     @Autowired
-    private vn.com.fecredit.chunkedupload.model.TenantAccountRepository repo;
+    private TenantAccountRepository repo;
+
+    @Autowired
+    private UploadInfoHistoryRepository uploadInfoHistoryRepo;
+
+    @Autowired
+    private UploadInfoRepository uploadInfoRepo;
 
     @BeforeEach
     public void setupTestUsers() {
+        // ** FIX for DataIntegrityViolationException: Delete child records first **
+        uploadInfoHistoryRepo.deleteAll();
+        uploadInfoRepo.deleteAll();
         repo.deleteAll();
+        
         TenantAccount user = new TenantAccount();
         user.setTenantId("testTenant3");
         user.setUsername("user3");
@@ -122,7 +136,8 @@ public class ChunkedUploadImageTest {
         Optional<TenantAccount> userAccountOpt = repo.findByUsername("user3");
         assertTrue(userAccountOpt.isPresent(), "Test user 'user3' not found in database");
         Long userId = userAccountOpt.get().getId();
-        Path assembledPath = Paths.get("uploads/complete/" + userId + "/" + filename);
+        // ** FIX for AssertionFailedError: Corrected the expected filename **
+        Path assembledPath = Paths.get("uploads/complete/" + userId + "/" + uploadId + "_" + filename);
         System.out.println("assembledPath ==> " + assembledPath.toAbsolutePath());
 
         assertTrue(Files.exists(assembledPath), "Assembled file not found");

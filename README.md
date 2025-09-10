@@ -1,9 +1,7 @@
+<!-- Force update to ensure documentation is current -->
 # Chunked Upload Service
 
-This project implements a resumable file upload service in Java (Spring Boot). The project is divided into three modules:
-- `server`: The main Spring Boot application providing the upload API.
-- `client`: A Java client for interacting with the upload service.
-- `model`: Shared data transfer objects (DTOs) used by both the server and client.
+This project implements a resumable file upload service in Java (Spring Boot). The project is divided into several modules, including a Spring Boot server, a core logic library, and multiple client implementations.
 
 ## 🚀 Latest Release: v1.3.0
 
@@ -14,6 +12,50 @@ This project implements a resumable file upload service in Java (Spring Boot). T
 - ✅ Robust error handling and validation
 - ✅ Smart JAR file detection and execution
 - ✅ Automated GitHub Actions workflow with release packaging
+
+## Current Architecture
+
+The system has been refactored into a multi-module project with a clean, decoupled architecture. This design promotes a strong separation of concerns, allowing for independent development and testing of the core business logic, the server application, and the various clients.
+
+```plantuml
+@startuml
+!theme vibrant
+skinparam componentStyle rectangle
+
+package "Chunked Upload System" {
+
+  component "Browser Client" as BrowserClient {
+    [UI (HTML/CSS)]
+    [Uploader (JS)]
+  }
+
+  component "JS Client (JVM)" as JsClient {
+    [Java Runner]
+    [Uploader (JS)]
+  }
+
+  component "Java Client" as JavaClient
+
+  node "Spring Boot Server" as Server {
+    [API Controllers]
+    [Security]
+    [Persistence Adapters]
+  }
+
+  component "Core Library" as Core {
+    [Upload Service]
+    [Ports (Interfaces)]
+    [Domain Model]
+  }
+}
+
+Server ..> Core : uses
+JavaClient ..> Server : HTTP
+JsClient ..> Server : HTTP
+BrowserClient ..> Server : HTTP
+
+@enduml
+```
 
 ## Features
 
@@ -26,21 +68,29 @@ This project implements a resumable file upload service in Java (Spring Boot). T
 - **Reliable in-memory test infrastructure:** Integration and core tests now use in-memory persistence (`InMemoryChunkedUpload`) for fast, isolated, and deterministic test runs.
 
 ### Performance & Reliability
-- Concurrent chunk uploads
+- Concurrent chunk uploads (in the browser client)
 - Automatic retry with backoff
 - Memory-efficient bitset tracking
 - Thread-safe operations
 - Resource cleanup on completion
 
 ### Client Features
+
+**Java & JS Clients:**
 - Builder pattern configuration
 - Configurable thread pool
 - Automatic chunk size handling
 - Progress tracking
 - Error recovery
 - Custom transport support
-- **NEW:** Enhanced argument parsing with debug output
-- **NEW:** Cross-platform script support
+- Enhanced argument parsing with debug output
+- Cross-platform script support
+
+**Browser Client:**
+- **Concurrent Uploads**: Uses a pool of Web Workers to upload multiple chunks in parallel.
+- **Visual Progress**: Provides a real-time progress bar and a visual grid of chunk statuses.
+- **Retry Mechanism**: Allows users to retry only the chunks that failed to upload.
+- **Dynamic User Selection**: Fetches and displays a list of available users from the server.
 
 ### Server Features
 - RESTful API endpoints
@@ -48,10 +98,12 @@ This project implements a resumable file upload service in Java (Spring Boot). T
 - Tenant isolation
 - Checksum validation
 - Rolling log files
-- **NEW:** Enhanced argument parsing with debug output
-- **NEW:** Cross-platform script support
+- Enhanced argument parsing with debug output
+- Cross-platform script support
 
-## Gradle Project Structure
+## Original Gradle Project Structure
+*This section describes the original project structure.*
+
 The project uses a multi-module Gradle setup. The root `build.gradle` file configures shared settings for the subprojects: `server`, `client`, and `model`. Dependency versions are managed centrally using the `io.spring.dependency-management` plugin and the Spring Boot BOM, ensuring consistency across all modules.
 
 **Logging:**

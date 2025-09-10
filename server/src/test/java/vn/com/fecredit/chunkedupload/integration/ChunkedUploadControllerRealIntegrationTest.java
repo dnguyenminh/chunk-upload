@@ -458,7 +458,7 @@ public class ChunkedUploadControllerRealIntegrationTest {
             ResponseEntity<String> resp = restTemplate().postForEntity(chunkUrl, entity, String.class);
             fail("Expected HttpClientErrorException$BadRequest");
         } catch (org.springframework.web.client.HttpClientErrorException.BadRequest ex) {
-            assertTrue(ex.getResponseBodyAsString().contains("Invalid chunk size for chunk -1"));
+            assertTrue(ex.getResponseBodyAsString().contains("Invalid chunk number: -1, totalChunks: 1"));
         }
 
         // Unauthorized access

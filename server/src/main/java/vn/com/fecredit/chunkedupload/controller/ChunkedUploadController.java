@@ -121,18 +121,44 @@ public class ChunkedUploadController {
             @RequestParam(value = "chunkNumber") int chunkNumber,
             @RequestPart(value = "file") MultipartFile file,
             Principal principal) throws Throwable {
+        log.debug("uploadChunk called with uploadId={}, chunkNumber={}, fileName={}, fileSize={}, principal={}",
+                uploadId, chunkNumber, file != null ? file.getOriginalFilename() : "null",
+                file != null ? file.getSize() : -1,
+                principal != null ? principal.getName() : "null");
+
+        if (uploadId == null || uploadId.isEmpty()) {
+            log.warn("uploadChunk: uploadId is null or empty");
+        }
+        if (file == null) {
+            log.warn("uploadChunk: file is null");
+        }
+        if (chunkNumber < 0) {
+            log.warn("uploadChunk: chunkNumber is negative: {}", chunkNumber);
+        }
+
         String username = getTenantAccountId(principal);
+        log.debug("uploadChunk: resolved username={}", username);
+
         try {
+            log.debug("uploadChunk: about to call uploadService.writeChunk with username={}, uploadId={}, chunkNumber={}, fileSize={}",
+                    username, uploadId, chunkNumber, file != null ? file.getSize() : -1);
             uploadService.writeChunk(username, uploadId, chunkNumber, file.getBytes());
         } catch (IOException ioe) {
-            log.debug("Chunk IO error: {}", ioe.getMessage());
+            log.error("Chunk IO error: {}", ioe.getMessage(), ioe);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body("Chunk IO error: " + ioe.getMessage());
         } catch (IllegalArgumentException e) {
-            log.debug("Chunk validation failed: {}", e.getMessage());
+            log.info("uploadChunk: IllegalArgumentException message='{}'", e.getMessage());
+            log.error("Chunk validation failed: {}", e.getMessage(), e);
+            log.error("uploadChunk params: uploadId={}, chunkNumber={}, fileName={}, fileSize={}, username={}",
+                    uploadId, chunkNumber, file != null ? file.getOriginalFilename() : "null",
+                    file != null ? file.getSize() : -1, username);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chunk validation failed: " + e.getMessage());
         } catch (Throwable throwable) {
-            log.debug("Chunk upload system Fail: {}", throwable.getMessage());
+            log.error("Chunk upload system Fail: {}", throwable.getMessage(), throwable);
+            log.error("uploadChunk params: uploadId={}, chunkNumber={}, fileName={}, fileSize={}, username={}",
+                    uploadId, chunkNumber, file != null ? file.getOriginalFilename() : "null",
+                    file != null ? file.getSize() : -1, username);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Chunk upload system failed: " + throwable.getMessage());
         }
         log.debug("Chunk upload successful for uploadId={}, chunkNumber={}", uploadId, chunkNumber);

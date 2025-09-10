@@ -3,39 +3,50 @@ package vn.com.fecredit.chunkedupload.config;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import vn.com.fecredit.chunkedupload.model.TenantAccountRepository;
+
+import java.util.Arrays;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
-/**
- * Security configuration for the chunked upload service.
- *
- * <p>Configures HTTP Basic authentication and disables CSRF for API endpoints.
- * It wires a {@link vn.com.fecredit.chunkedupload.model.TenantAccountRepository} backed
- * {@link org.springframework.security.core.userdetails.UserDetailsService} so tenant accounts
- * stored in the database are used for authentication.</p>
- */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    /**
-     * Configures the security filter chain for HTTP Basic authentication.
-     *
-     * @param http The HttpSecurity object to configure.
-     * @return The configured SecurityFilterChain.
-     * @throws Exception If an error occurs during configuration.
-     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable).authorizeHttpRequests(authz -> authz.anyRequest().authenticated()).httpBasic(withDefaults()).exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint()));
+        http
+            .cors(withDefaults()) // Enable CORS and use the CorsConfigurationSource bean
+            .csrf(AbstractHttpConfigurer::disable)
+            .authorizeHttpRequests(authz -> authz
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // Allow all CORS pre-flight OPTIONS requests
+                .requestMatchers("/api/upload/users").permitAll() // **THE FIX IS HERE: Allow public access to the user list**
+                .anyRequest().authenticated() // All other requests must be authenticated
+            )
+            .httpBasic(withDefaults())
+            .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint()));
         return http.build();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList("*"));
+        configuration.setAllowedMethods(Arrays.asList("*"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 
     @Bean
@@ -48,13 +59,6 @@ public class SecurityConfig {
         };
     }
 
-    /**
-     * Provides a UserDetailsService backed by {@link TenantAccountRepository}.
-     * This allows tenant users stored in the database to authenticate via HTTP Basic.
-     *
-     * @param tenantAccountRepository repository for tenant accounts
-     * @return UserDetailsService implementation
-     */
     @Bean
     public UserDetailsService userDetailsService(TenantAccountRepository tenantAccountRepository) {
         return username -> {
@@ -69,10 +73,6 @@ public class SecurityConfig {
         };
     }
 
-    /**
-     * Password encoder bean used by Spring Security. Uses a DelegatingPasswordEncoder
-     * with bcrypt as the default algorithm.
-     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         java.util.Map<String, org.springframework.security.crypto.password.PasswordEncoder> encoders = new java.util.HashMap<>();

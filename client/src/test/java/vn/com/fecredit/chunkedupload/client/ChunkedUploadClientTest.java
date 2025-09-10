@@ -23,7 +23,7 @@ import static org.mockito.Mockito.*;
 class ChunkedUploadClientTest {
 
     private static final String UPLOAD_URL = "http://localhost:8080";
-    private static final String FILENAME = "test-file.txt";
+    private static final String FILENAME = "temp/test-file.txt";
     private static final String USERNAME = "user";
     private static final String PASSWORD = "password";
     private static final int RETRY_TIMES = 2;

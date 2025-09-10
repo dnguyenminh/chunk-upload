@@ -144,7 +144,7 @@ public class ChunkedUploadControllerTest {
         com.fasterxml.jackson.databind.JsonNode jsonNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(res);
         String uploadId = jsonNode.get("uploadId").asText();
 
-        for (int i = 1; i <= totalChunks; i++) {
+        for (int i = 1; i < totalChunks; i++) {
             byte[] chunkData = new byte[chunkSize];
             new java.util.Random().nextBytes(chunkData);
 

@@ -1,182 +1,143 @@
-# Architecture Design
+<!-- Force update to ensure documentation is current -->
+# System Architecture
 
-## 🚀 Latest Release: v1.3.0
+This document provides a detailed overview of the architectural design of the Chunked File Upload System. The system is designed to be modular, scalable, and maintainable, with a clear separation of concerns between its different parts.
 
-**Enhanced Scripts & Cross-Platform Support**
-- ✅ Advanced argument parsing with `--key=value` format support
-- ✅ Cross-platform compatibility (Windows .bat + Linux .sh)
-- ✅ Debug output for troubleshooting
-- ✅ Robust error handling and validation
-- ✅ Smart JAR file detection and execution
-- ✅ Automated GitHub Actions workflow with release packaging
+## 1. Current Refactored Architecture
 
-## High-Level Architecture
+The system has been refactored into a multi-module project with a clean, decoupled architecture. This design promotes a strong separation of concerns, allowing for independent development and testing of the core business logic, the server application, and the various clients.
 
-The project is designed with a modular architecture, separating concerns into three distinct Gradle modules:
+```plantuml
+@startuml
+!theme vibrant
+skinparam componentStyle rectangle
 
-- **`server`**: A Spring Boot application that provides the REST API for chunked file uploads. It contains all the server-side logic for handling requests, managing file operations, and tracking upload state.
-- **`client`**: A Java library containing the `ChunkedUploadClient`, a multi-threaded client designed to interact with the server's API. It handles file chunking, parallel uploads, and retry logic.
-- **`model`**: A lightweight module containing the shared Data Transfer Objects (DTOs), such as `InitRequest` and `InitResponse`, used for communication between the `server` and `client`.
+package "Chunked Upload System" {
 
-## Gradle Build System
+  component "Browser Client" as BrowserClient {
+    [UI (HTML/CSS)]
+    [Uploader (JS)]
+  }
 
-The project is configured as a multi-module Gradle build. The root `build.gradle` file orchestrates the build, applying common plugins and configurations to all subprojects. Key aspects include:
+  component "JS Client (JVM)" as JsClient {
+    [Java Runner]
+    [Uploader (JS)]
+  }
 
-- **`io.spring.dependency-management`**: This plugin is applied to all subprojects to manage dependency versions centrally.
-- **Spring Boot BOM**: The `spring-boot-dependencies` BOM (Bill of Materials) is imported in the root project, ensuring that all modules use a consistent set of dependency versions that are known to work well together.
-- **Module-Specific Dependencies**: Each module (`server`, `client`, `model`) has its own `build.gradle` file where its specific dependencies are declared (e.g., `spring-boot-starter-web` for the server, `jackson-databind` for the client).
-- **Logging**: SLF4J logging is used throughout, with Logback as the backend. Logback configuration is in [`server/src/main/resources/logback.xml`](server/src/main/resources/logback.xml:1). Logback now uses a rolling file appender with daily log rotation (`logs/server.%d{yyyy-MM-dd}.log`, 30 days history). Logback dependencies are managed by Spring Boot; do not declare explicit Logback versions in Gradle.
+  component "Java Client" as JavaClient
 
-This setup ensures a clean, maintainable, and consistent build process across the entire project.
+  node "Spring Boot Server" as Server {
+    [API Controllers]
+    [Security]
+    [Persistence Adapters]
+  }
 
-## Test Architecture
+  component "Core Library" as Core {
+    [Upload Service]
+    [Ports (Interfaces)]
+    [Domain Model]
+  }
+}
 
-- Integration and core tests use an in-memory persistence implementation (`InMemoryChunkedUpload`) to ensure reliable, isolated, and fast test execution.
-- This design enables deterministic tests that do not depend on external databases or file systems, improving CI reliability and developer productivity.
+Server ..> Core : uses
+JavaClient ..> Server : HTTP
+JsClient ..> Server : HTTP
+BrowserClient ..> Server : HTTP
 
-## Enhanced Scripts Architecture (v1.3.0)
+@enduml
+```
 
-The v1.3.0 release introduces significantly enhanced client and server scripts with advanced features:
+### Core Module: The Hexagon
 
-### Script Architecture Features
-- **Cross-Platform Compatibility**: Unified logic across Windows (.bat) and Linux (.sh) scripts
-- **Advanced Argument Parsing**: Support for both `--key=value` and `--key value` formats
-- **Debug Output**: Comprehensive logging for troubleshooting argument parsing
-- **Smart JAR Detection**: Automatic detection and prioritization of executable JARs
-- **Robust Error Handling**: Clear error messages and validation
-- **Path Resolution**: Scripts work from any directory location
+The most important architectural decision is the decoupling of the core business logic from external frameworks. This is achieved using the **Ports and Adapters (Hexagonal) Architecture**.
 
-### Script Components
+- The **`:core`** module is the **hexagon**. It contains the pure business logic (`AbstractChunkedUpload`) and defines the interfaces (the **Ports**) it needs to communicate with the outside world (e.g., for data persistence).
+- The **`:server`** module provides the **adapters**. It contains the concrete implementations of the Port interfaces, using technologies like Spring Data JPA.
 
-#### Client Script (`run-client.bat` / `run-client.sh`)
-- **Argument Processing**: Parses `--filePath`, `--uploadUrl`, `--username`, `--password`, etc.
-- **Validation Logic**: Ensures all required arguments are provided
-- **JAR Discovery**: Finds and executes `client-*.jar` files
-- **Debug Output**: Shows parsing steps for troubleshooting
-- **Error Recovery**: Graceful handling of missing JARs or invalid arguments
+This design means the core logic can be tested in isolation, and the underlying technologies (like databases) can be swapped without affecting the business rules.
 
-#### Server Script (`run-server.bat` / `run-server.sh`)
-- **Argument Processing**: Parses `--server.port`, `--chunkedupload.chunk-size`, etc.
-- **JAR Selection**: Prioritizes executable JARs over plain JARs
-- **Path Resolution**: Works from any directory using relative paths
-- **Debug Output**: Shows JAR selection and execution steps
-- **Fallback Logic**: Handles missing JARs gracefully
+### Class Diagram: Ports and Adapters
 
-### Script Execution Flow
+This diagram illustrates how the `core` module defines the `IUploadInfoPort` and `ITenantAccountPort` interfaces, and how the `server` module provides the JPA-based implementations.
 
-1. **Argument Parsing**: Process command-line arguments with debug output
-2. **Validation**: Check for required arguments and show clear error messages
-3. **JAR Discovery**: Find appropriate JAR files in `build/libs/` directory
-4. **Execution**: Run JAR with parsed arguments and show execution command
-5. **Error Handling**: Provide helpful error messages for common issues
+```plantuml
+@startuml
+!theme vibrant
+skinparam classAttributeIconSize 0
 
-### Benefits of Enhanced Scripts
+package "core" {
+  interface IUploadInfoPort
+  interface ITenantAccountPort
 
-- **Developer Experience**: Debug output helps troubleshoot configuration issues
-- **Cross-Platform**: Same functionality on Windows and Linux
-- **Robustness**: Better error handling and validation
-- **Maintainability**: Unified logic across platforms
-- **User-Friendly**: Clear error messages and usage instructions
+  class AbstractChunkedUpload {
+    + iUploadInfoPort: IUploadInfoPort
+    + iTenantAccountPort: ITenantAccountPort
+    + writeChunk()
+    + assembleFile()
+  }
 
-## Release Packaging & Artifacts
+  AbstractChunkedUpload o-- IUploadInfoPort
+  AbstractChunkedUpload o-- ITenantAccountPort
+}
 
-Each release zip (client/server) is structured as follows:
-- `libs/chunked-upload-*.jar`
-- `dependencies/download-dependencies.bat`
-- `dependencies/download-dependencies.sh`
-- `run-*.bat`
-- `run-*.sh`
+package "server" {
+  class UploadInfoRepository <<JPA>>
+  class TenantAccountRepository <<JPA>>
 
-Packaging is automated via `.github/workflows/build-and-release.yml`.
+  class JpaUploadInfoAdapter implements IUploadInfoPort {
+    - uploadInfoRepository: UploadInfoRepository
+  }
 
-## Server Module Components
+  class JpaTenantAccountAdapter implements ITenantAccountPort {
+    - tenantAccountRepository: TenantAccountRepository
+  }
 
-- **`ChunkedUploadController`**: The entry point for all API requests. It handles HTTP requests for initializing, chunking, checking status, and aborting uploads. It delegates business logic to the service and manager layers.
-- **`ChunkedUploadService`**: Manages all low-level file system operations. Its responsibilities include creating temporary part files, writing a metadata header, writing individual chunks to the correct offset, and assembling the final file upon completion.
-- **`SessionManager`**: An in-memory component that tracks active upload sessions using a thread-safe `ConcurrentHashMap`. It provides:
-  - Fast O(1) lookups for session validation
-  - Automatic resource cleanup on session end
-  - Thread-safe state management
-  - Memory-efficient storage using upload IDs as keys
+  class ChunkedUploadService extends AbstractChunkedUpload {
+    // Spring-specific implementation
+  }
 
-- **`BitsetManager`**: A sophisticated chunk tracking system that uses bitsets for efficient state management:
-  - Uses 1 bit per chunk (8 chunks per byte) for memory efficiency
-  - Thread-safe operations via `ConcurrentHashMap`
-  - O(1) chunk marking and O(n/8) completion checking
-  - Automatic cleanup via weak references
-  - Supports concurrent uploads with atomic operations
+  JpaUploadInfoAdapter .> UploadInfoRepository
+  JpaTenantAccountAdapter .> TenantAccountRepository
+  ChunkedUploadService -up-|> AbstractChunkedUpload
+}
 
-## On-Disk Format (In-Progress Files)
+note right of AbstractChunkedUpload
+  The core business logic is completely
+  decoupled from the persistence layer.
+  It depends only on interfaces (Ports).
+end note
 
-To manage resumability without a database, the `server` uses a temporary `.part` file for each upload. This file has a custom binary header followed by the pre-allocated space for all file chunks.
+note left of JpaUploadInfoAdapter
+  The server module provides the
+  concrete implementations (Adapters)
+  of the Ports using Spring Data JPA.
+end note
+@enduml
+```
 
-**Header Format (Big Endian):**
-1.  **Magic Number** (4 bytes): `0xCAFECAFE` to identify the file type.
-2.  **Total Chunks** (4 bytes): The total number of chunks for the file.
-3.  **Chunk Size** (4 bytes): The size of each chunk.
-4.  **File Size** (8 bytes): The total size of the original file.
-5.  **Bitset** (variable bytes): A bitset where each bit represents a chunk, used to track received chunks.
+## 2. Original Architecture Details
 
-When a chunk is received, it is written directly to its calculated offset in the `.part` file (`headerSize + (chunkIndex * chunkSize)`).
+*This section describes the original implementation details that are still relevant.*
 
-## Design Choices
+### Server Module Internals
 
-- **Stateless Architecture**:
-  - In-memory state management via thread-safe components
-  - On-disk headers for persistence and recovery
-  - No database dependency for simplified deployment
-  - Automatic resource cleanup and memory management
+The `:server` module is responsible for handling all web-layer concerns.
 
-- **Resumability**:
-  - Chunk-level granularity for efficient resume
-  - Server-controlled chunk size for optimal performance
-  - Checksum validation for data integrity
-  - Bitset tracking for upload progress
+#### a) API Controllers
 
-- **Modularity**:
-  - Clean separation of concerns across modules
-  - Independent versioning and deployment
-  - Shared DTOs in model module
-  - Consistent dependency management
+- **`ChunkedUploadController`**: The primary controller for the upload process. It handles the `/api/upload` endpoints for initializing an upload (`/init`) and receiving file chunks (`/chunk`). It delegates all business logic to the `ChunkedUploadService` from the `:core` module.
+- **`UserController`**: A simple controller that exposes the `/api/users` endpoint. This is used by the browser client to populate the user selection dropdown.
 
-- **Client Performance**:
-  - Producer-consumer pattern for chunk processing
-  - Configurable thread pool for parallel uploads
-  - Bounded queue for backpressure management
-  - Automatic retry with exponential backoff
-  - Efficient resource cleanup on completion/failure
+#### b) Security Configuration
 
-- **Thread Safety**:
-  - Immutable data transfer objects
-  - Thread-safe managers using `ConcurrentHashMap`
-  - Atomic operations for state updates
-  - Clear ownership boundaries for shared resources
+- **`SecurityConfig.java`**: This class configures Spring Security to secure the API endpoints.
+  - It uses **HTTP Basic Authentication**.
+  - It provides a `UserDetailsService` bean that integrates with the `TenantAccountRepository` to authenticate users against the database.
+  - It configures a global **CORS (Cross-Origin Resource Sharing)** policy to allow the browser client to make requests to the server.
+  - **CSRF (Cross-Site Request Forgery) protection is disabled**, which is a common practice for stateless REST APIs consumed by non-browser clients or single-page applications.
 
-## Security Architecture
+#### c) Persistence Layer (Adapters)
 
-### Authentication & Authorization
-- HTTP Basic Authentication with Spring Security
-- BCrypt password hashing with salt
-- Delegating password encoder supporting multiple hash formats
-- Database-backed user details service
-- Tenant-based access control
-
-### Database Schema
-- **Tenants Table**:
-  - `id`: Primary key (auto-generated)
-  - `tenant_id`: Unique business identifier
-  - `username`: Unique login name
-  - `password`: BCrypt hashed password (with {bcrypt} prefix)
-
-### File Access Control
-- Each file upload is associated with a tenant
-- Files are stored in tenant-specific directories
-- Cross-tenant access is prevented
-- Upload sessions are tenant-scoped
-
-### Security Best Practices
-- Automatic password hashing
-- No plaintext password storage
-- Secure session management
-- Resource isolation between tenants
-- Input validation and sanitization
+- **JPA Entities**: The `TenantAccount` and `UploadInfo` classes in the `:server` module are JPA entities that map to the database tables.
+- **Spring Data Repositories**: The `TenantAccountRepository` and `UploadInfoRepository` are standard Spring Data JPA interfaces that provide basic CRUD operations.
+- **Port Adapters**: The `JpaTenantAccountAdapter` and `JpaUploadInfoAdapter` are the concrete implementations of the Port interfaces defined in the `:core` module. They bridge the gap between the core business logic and the Spring Data persistence layer.
