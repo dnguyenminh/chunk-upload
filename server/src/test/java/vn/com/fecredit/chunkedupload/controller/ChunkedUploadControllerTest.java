@@ -57,6 +57,58 @@ public class ChunkedUploadControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+    @Test
+    void testInitUpload_InvalidParameters() throws Exception {
+        String url = "/api/upload/init";
+        String validUsername = "user";
+        String validPassword = "password";
+        String validFileName = "file.txt";
+        String validChecksum = "checksum";
+        long validFileSize = 1024L;
+
+        // Helper to build JSON
+        java.util.function.BiFunction<String, Object, String> json = (k, v) -> "\"" + k + "\":" + (v instanceof String ? "\"" + v + "\"" : v);
+
+        // Missing filename
+        String bodyMissingFilename = "{" + json.apply("fileSize", validFileSize) + "," + json.apply("checksum", validChecksum) + "}";
+        mockMvc.perform(post(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(bodyMissingFilename)
+                .with(httpBasic(validUsername, validPassword)))
+                .andExpect(status().isBadRequest());
+
+        // Missing checksum
+        String bodyMissingChecksum = "{" + json.apply("fileSize", validFileSize) + "," + json.apply("filename", validFileName) + "}";
+        mockMvc.perform(post(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(bodyMissingChecksum)
+                .with(httpBasic(validUsername, validPassword)))
+                .andExpect(status().isBadRequest());
+
+        // fileSize <= 0
+        String bodyInvalidFileSize = "{" + json.apply("fileSize", 0) + "," + json.apply("filename", validFileName) + "," + json.apply("checksum", validChecksum) + "}";
+        mockMvc.perform(post(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(bodyInvalidFileSize)
+                .with(httpBasic(validUsername, validPassword)))
+                .andExpect(status().isBadRequest());
+
+        // Empty filename
+        String bodyEmptyFilename = "{" + json.apply("fileSize", validFileSize) + "," + json.apply("filename", "") + "," + json.apply("checksum", validChecksum) + "}";
+        mockMvc.perform(post(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(bodyEmptyFilename)
+                .with(httpBasic(validUsername, validPassword)))
+                .andExpect(status().isBadRequest());
+
+        // Empty checksum
+        String bodyEmptyChecksum = "{" + json.apply("fileSize", validFileSize) + "," + json.apply("filename", validFileName) + "," + json.apply("checksum", "") + "}";
+        mockMvc.perform(post(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(bodyEmptyChecksum)
+                .with(httpBasic(validUsername, validPassword)))
+                .andExpect(status().isBadRequest());
+    }
 
     /**
      * Tests the entire upload flow, from initialization to completion, with a small file.

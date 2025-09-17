@@ -114,4 +114,32 @@ class DefaultChunkedUploadTest {
                 chunkedUpload.writeChunk(TEST_USERNAME, uploadId, 1, data));
         assertTrue(ex.getMessage().contains("Invalid last chunk size"));
     }
+    @Test
+    void testRegisterUploadingFile_InvalidParameters() throws Throwable {
+        String validUploadId = UUID.randomUUID().toString();
+        String validFileName = "file.txt";
+        String validChecksum = "checksum";
+        long validFileSize = 1024L;
+
+        assertThrows(IllegalArgumentException.class, () ->
+            chunkedUpload.registerUploadingFile(null, validUploadId, validFileName, validFileSize, validChecksum));
+        assertThrows(IllegalArgumentException.class, () ->
+            chunkedUpload.registerUploadingFile("", validUploadId, validFileName, validFileSize, validChecksum));
+        assertThrows(IllegalArgumentException.class, () ->
+            chunkedUpload.registerUploadingFile(TEST_USERNAME, null, validFileName, validFileSize, validChecksum));
+        assertThrows(IllegalArgumentException.class, () ->
+            chunkedUpload.registerUploadingFile(TEST_USERNAME, "", validFileName, validFileSize, validChecksum));
+        assertThrows(IllegalArgumentException.class, () ->
+            chunkedUpload.registerUploadingFile(TEST_USERNAME, validUploadId, null, validFileSize, validChecksum));
+        assertThrows(IllegalArgumentException.class, () ->
+            chunkedUpload.registerUploadingFile(TEST_USERNAME, validUploadId, "", validFileSize, validChecksum));
+        assertThrows(IllegalArgumentException.class, () ->
+            chunkedUpload.registerUploadingFile(TEST_USERNAME, validUploadId, validFileName, 0L, validChecksum));
+        assertThrows(IllegalArgumentException.class, () ->
+            chunkedUpload.registerUploadingFile(TEST_USERNAME, validUploadId, validFileName, -1L, validChecksum));
+        assertThrows(IllegalArgumentException.class, () ->
+            chunkedUpload.registerUploadingFile(TEST_USERNAME, validUploadId, validFileName, validFileSize, null));
+        assertThrows(IllegalArgumentException.class, () ->
+            chunkedUpload.registerUploadingFile(TEST_USERNAME, validUploadId, validFileName, validFileSize, ""));
+    }
 }

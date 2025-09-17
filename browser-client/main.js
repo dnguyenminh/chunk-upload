@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // ** THE FIX IS HERE: Corrected the API endpoint URL **
             const response = await fetch('http://localhost:8080/api/users', {
                 headers: {
-                    'Authorization': 'Basic ' + btoa('user1:password')
+                    'Authorization': 'Basic ' + btoa('user:password')
                 }
             });
 

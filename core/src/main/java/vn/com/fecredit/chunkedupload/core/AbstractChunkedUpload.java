@@ -177,6 +177,17 @@ public abstract class AbstractChunkedUpload<T extends ITenantAccount, Y extends 
     }
 
     public final Y registerUploadingFile(String username, String uploadId, String fileName, long fileSize, String checksum) throws Throwable {
+        if (username == null || username.isEmpty())
+            throw new IllegalArgumentException("username is required");
+        if (uploadId == null || uploadId.isEmpty())
+            throw new IllegalArgumentException("uploadId is required");
+        if (fileName == null || fileName.isEmpty())
+            throw new IllegalArgumentException("fileName is required");
+        if (fileSize <= 0)
+            throw new IllegalArgumentException("fileSize must be > 0");
+        if (checksum == null || checksum.isEmpty())
+            throw new IllegalArgumentException("checksum is required");
+
         Header header = createOrValidateHeader(getPartPath(username, uploadId), (int) Math.ceil((double) fileSize / defaultChunkSize), defaultChunkSize, fileSize);
         Y uploadInfo = createUploadInfo(username, uploadId, header, fileName, checksum);
         try {
